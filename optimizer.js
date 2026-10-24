@@ -252,7 +252,6 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
 
     if (!docName || partsList.length === 0) return;
 
-    // Verificar si ya existe en Supabase
     const { data: existing } = await supabaseClient
         .from('projects')
         .select('doc_name')
@@ -303,7 +302,6 @@ document.getElementById('btn-update-project').addEventListener('click', async ()
     const confirmar = window.confirm('¿ESTÁS SEGURO DE ACTUALIZAR ESTE REGISTRO EN LA NUBE?');
     if (!confirmar) return;
 
-    // Si cambió el nombre del documento, eliminamos el anterior y creamos uno nuevo
     if (currentLoadedId !== docName) {
         await supabaseClient.from('projects').delete().eq('doc_name', currentLoadedId);
     }
