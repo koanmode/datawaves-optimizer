@@ -1,8 +1,7 @@
 // =========================================================
-// DATAWAVES OPTIMIZER - SCRIPT CON SUPABASE CLOUD (BASE DE DATOS ÚNICA)
+// DATAWAVES OPTIMIZER - SCRIPT CON SUPABASE CLOUD & REALTIME
 // =========================================================
 
-// CONFIGURACIÓN DE SUPABASE
 const SUPABASE_URL = 'https://sksanvauywgjxmxujicl.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_2fuRdNLrO24nN5HA6e8lmw_v6IYVleX';
 
@@ -11,13 +10,11 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_
 let partsList = [];
 let editingIndex = null;
 let partColorsMap = {};
-let currentLoadedId = null; // ID del registro cargado
+let currentLoadedId = null; 
 
-// Configurar acento verde por defecto
 document.documentElement.setAttribute('data-accent', 'verde');
 document.body.setAttribute('data-accent', 'verde');
 
-// Funciones auxiliares para obtener y limpiar datos de la orden
 function getOrderData() {
     return {
         id: (document.getElementById('doc-id')?.value || '').trim(),
@@ -197,14 +194,14 @@ function injectFloatingSkinPicker() {
 }
 
 // =========================================================
-// GESTIÓN DE SUPABASE (BASE DE DATOS CLOUD)
+// GESTIÓN DE SUPABASE (CON ACTUALIZACIÓN AUTOMÁTICA)
 // =========================================================
 
-async function populateSavedProjectsDropdown() {
+async function populateSavedProjectsDropdown(keepSelected = true) {
     const select = document.getElementById('saved-projects-select');
     if (!select) return;
 
-    select.innerHTML = '<option value="">-- CARGANDO DESDE LA NUBE... --</option>';
+    const previousValue = select.value;
 
     const { data, error } = await supabaseClient
         .from('projects')
@@ -213,7 +210,6 @@ async function populateSavedProjectsDropdown() {
 
     if (error) {
         console.error('Error al cargar proyectos de Supabase:', error);
-        select.innerHTML = '<option value="">-- ERROR AL CARGAR --</option>';
         return;
     }
 
@@ -226,10 +222,23 @@ async function populateSavedProjectsDropdown() {
         select.appendChild(option);
     });
     
-    if (currentLoadedId) {
+    if (keepSelected && previousValue) {
+        select.value = previousValue;
+    } else if (currentLoadedId) {
         select.value = currentLoadedId;
     }
+    
     updateButtonStates();
+}
+
+// ESCUCHADOR EN TIEMPO REAL: Si otra PC guarda o borra, se actualiza la lista solo
+function initRealtimeSync() {
+    supabaseClient
+        .channel('public:projects')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, payload => {
+            populateSavedProjectsDropdown(true);
+        })
+        .subscribe();
 }
 
 document.getElementById('project-name').addEventListener('input', () => {
@@ -281,7 +290,7 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
 
     currentLoadedId = docName;
     
-    await populateSavedProjectsDropdown();
+    await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = docName;
     updateButtonStates();
     alert(`EL REGISTRO "${docName}" HA SIDO GUARDADO EN LA NUBE EXITOSAMENTE.`);
@@ -326,7 +335,7 @@ document.getElementById('btn-update-project').addEventListener('click', async ()
 
     currentLoadedId = docName;
 
-    await populateSavedProjectsDropdown();
+    await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = docName;
     updateButtonStates();
     alert(`EL REGISTRO "${docName}" FUE ACTUALIZADO CON ÉXITO.`);
@@ -397,7 +406,7 @@ document.getElementById('btn-delete-project').addEventListener('click', async ()
         clearOrderDataFields();
     }
     
-    await populateSavedProjectsDropdown();
+    await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = "";
     updateButtonStates();
     alert(`EL REGISTRO "${selectedDoc}" FUE ELIMINADO CON ÉXITO.`);
@@ -504,7 +513,7 @@ document.getElementById('import-file-input').addEventListener('change', function
                 return;
             }
 
-            await populateSavedProjectsDropdown();
+            await populateSavedProjectsDropdown(false);
             document.getElementById('saved-projects-select').value = docName;
             updateButtonStates();
 
@@ -839,7 +848,7 @@ printStyle.innerHTML = `
         table { border-collapse: collapse !important; width: 100% !important; }
         th, td { border: 1px solid #000000 !important; padding: 4px 8px !important; font-size: 11px !important; }
         .print-parts-summary { background: #ffffff !important; border: 1px solid #000000 !important; margin-bottom: 15px !important; }
-        .print-bar-card { background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 2px !important; margin-bottom: 10px !important; padding: 8px !important; page-break-inside: avoid; }
+        .print-bar-card { background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 2px !important; margin-bottom: 10mm !important; padding: 8px !important; page-break-inside: avoid; }
         .print-bar-track { height: 26px !important; background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 0 !important; }
         .print-cut-block { background: #ffffff !important; color: #000000 !important; border-right: 1px solid #000000 !important; box-sizing: border-box !important; }
         .print-cut-block strong, .print-cut-block span { color: #000000 !important; font-weight: 700 !important; font-size: 8.5px !important; }
@@ -852,6 +861,7 @@ document.head.appendChild(printStyle);
 window.addEventListener('DOMContentLoaded', () => {
     injectFloatingSkinPicker();
     populateSavedProjectsDropdown();
+    initRealtimeSync(); // Activa la escucha en tiempo real
     updateButtonStates();
     const bladeInput = document.getElementById('blade-width');
     if(bladeInput && !bladeInput.value) bladeInput.value = 2;
