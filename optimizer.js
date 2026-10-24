@@ -1,6 +1,12 @@
 // =========================================================
-// DATAWAVES OPTIMIZER - SCRIPT DE CORTES LINEALES
+// DATAWAVES OPTIMIZER - SCRIPT CON SUPABASE CLOUD (BASE DE DATOS ÚNICA)
 // =========================================================
+
+// CONFIGURACIÓN DE SUPABASE
+const SUPABASE_URL = 'https://sksanvauywgjxmxujicl.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_2fuRdNLrO24nN5HA6e8lmw_v6IYVleX';
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let partsList = [];
 let editingIndex = null;
@@ -191,25 +197,34 @@ function injectFloatingSkinPicker() {
 }
 
 // =========================================================
-// GESTIÓN DE LOCALSTORAGE
+// GESTIÓN DE SUPABASE (BASE DE DATOS CLOUD)
 // =========================================================
 
-function populateSavedProjectsDropdown() {
+async function populateSavedProjectsDropdown() {
     const select = document.getElementById('saved-projects-select');
     if (!select) return;
 
+    select.innerHTML = '<option value="">-- CARGANDO DESDE LA NUBE... --</option>';
+
+    const { data, error } = await supabaseClient
+        .from('projects')
+        .select('doc_name')
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        console.error('Error al cargar proyectos de Supabase:', error);
+        select.innerHTML = '<option value="">-- ERROR AL CARGAR --</option>';
+        return;
+    }
+
     select.innerHTML = '<option value="">-- SELECCIONAR --</option>';
 
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('DW_PROJ_')) {
-            const docName = key.replace('DW_PROJ_', '');
-            const option = document.createElement('option');
-            option.value = docName;
-            option.textContent = docName.toUpperCase();
-            select.appendChild(option);
-        }
-    }
+    data.forEach(row => {
+        const option = document.createElement('option');
+        option.value = row.doc_name;
+        option.textContent = row.doc_name.toUpperCase();
+        select.appendChild(option);
+    });
     
     if (currentLoadedId) {
         select.value = currentLoadedId;
@@ -225,7 +240,7 @@ document.getElementById('saved-projects-select').addEventListener('change', () =
     updateButtonStates();
 });
 
-document.getElementById('btn-save-project').addEventListener('click', () => {
+document.getElementById('btn-save-project').addEventListener('click', async () => {
     let rawDocName = document.getElementById('project-name').value.trim();
     const ofVal = document.getElementById('doc-of').value.trim();
     
@@ -237,32 +252,43 @@ document.getElementById('btn-save-project').addEventListener('click', () => {
 
     if (!docName || partsList.length === 0) return;
 
-    const storageKey = `DW_PROJ_${docName}`;
+    // Verificar si ya existe en Supabase
+    const { data: existing } = await supabaseClient
+        .from('projects')
+        .select('doc_name')
+        .eq('doc_name', docName)
+        .single();
 
-    if (localStorage.getItem(storageKey) !== null) {
-        alert('YA EXISTE');
+    if (existing) {
+        alert('YA EXISTE UN REGISTRO CON ESTE NOMBRE EN LA NUBE.');
         return;
     }
 
     const projectData = {
-        docName: docName,
-        barLength: barLength,
-        bladeWidth: bladeWidth,
-        partsList: partsList,
-        orderData: getOrderData(),
-        updatedAt: new Date().toISOString()
+        doc_name: docName,
+        bar_length: barLength,
+        blade_width: bladeWidth,
+        parts_list: partsList,
+        order_data: getOrderData(),
+        updated_at: new Date().toISOString()
     };
 
-    localStorage.setItem(storageKey, JSON.stringify(projectData));
+    const { error } = await supabaseClient.from('projects').insert([projectData]);
+
+    if (error) {
+        alert('ERROR AL GUARDAR EN LA NUBE: ' + error.message);
+        return;
+    }
+
     currentLoadedId = docName;
     
-    populateSavedProjectsDropdown();
+    await populateSavedProjectsDropdown();
     document.getElementById('saved-projects-select').value = docName;
     updateButtonStates();
-    alert(`EL REGISTRO "${docName}" HA SIDO CREADO EXITOSAMENTE.`);
+    alert(`EL REGISTRO "${docName}" HA SIDO GUARDADO EN LA NUBE EXITOSAMENTE.`);
 });
 
-document.getElementById('btn-update-project').addEventListener('click', () => {
+document.getElementById('btn-update-project').addEventListener('click', async () => {
     let rawDocName = document.getElementById('project-name').value.trim();
     const ofVal = document.getElementById('doc-of').value.trim();
     
@@ -274,34 +300,41 @@ document.getElementById('btn-update-project').addEventListener('click', () => {
 
     if (!docName || partsList.length === 0 || !currentLoadedId) return;
 
-    const confirmar = window.confirm('¿ESTAS SEGURO DE ACTUALIZAR REGISTRO?');
+    const confirmar = window.confirm('¿ESTÁS SEGURO DE ACTUALIZAR ESTE REGISTRO EN LA NUBE?');
     if (!confirmar) return;
 
-    const newStorageKey = `DW_PROJ_${docName}`;
-
+    // Si cambió el nombre del documento, eliminamos el anterior y creamos uno nuevo
     if (currentLoadedId !== docName) {
-        localStorage.removeItem(`DW_PROJ_${currentLoadedId}`);
+        await supabaseClient.from('projects').delete().eq('doc_name', currentLoadedId);
     }
 
     const projectData = {
-        docName: docName,
-        barLength: barLength,
-        bladeWidth: bladeWidth,
-        partsList: partsList,
-        orderData: getOrderData(),
-        updatedAt: new Date().toISOString()
+        doc_name: docName,
+        bar_length: barLength,
+        blade_width: bladeWidth,
+        parts_list: partsList,
+        order_data: getOrderData(),
+        updated_at: new Date().toISOString()
     };
 
-    localStorage.setItem(newStorageKey, JSON.stringify(projectData));
+    const { error } = await supabaseClient
+        .from('projects')
+        .upsert([projectData]);
+
+    if (error) {
+        alert('ERROR AL ACTUALIZAR: ' + error.message);
+        return;
+    }
+
     currentLoadedId = docName;
 
-    populateSavedProjectsDropdown();
+    await populateSavedProjectsDropdown();
     document.getElementById('saved-projects-select').value = docName;
     updateButtonStates();
     alert(`EL REGISTRO "${docName}" FUE ACTUALIZADO CON ÉXITO.`);
 });
 
-document.getElementById('btn-load-project').addEventListener('click', () => {
+document.getElementById('btn-load-project').addEventListener('click', async () => {
     const selectedDoc = document.getElementById('saved-projects-select').value;
     if (!selectedDoc) {
         alert('SELECCIONE UN DOCUMENTO DE LA LISTA PARA CARGAR.');
@@ -311,26 +344,29 @@ document.getElementById('btn-load-project').addEventListener('click', () => {
     const hasProgress = document.getElementById('project-name').value.trim().length > 0 || partsList.length > 0;
 
     if (hasProgress) {
-        const confirmarCarga = window.confirm('¿ESTAS SEGURO DE CARGAR UN REGISTRO EXISTENTE? PERDERAS EL PROGRESO');
+        const confirmarCarga = window.confirm('¿ESTAS SEGURO DE CARGAR UN REGISTRO EXISTENTE? PERDERAS EL PROGRESO ACTUAL.');
         if (!confirmarCarga) return;
     }
 
-    const savedData = localStorage.getItem(`DW_PROJ_${selectedDoc}`);
-    if (!savedData) {
-        alert('NO SE ENCONTRÓ EL DOCUMENTO SELECCIONADO.');
+    const { data, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .eq('doc_name', selectedDoc)
+        .single();
+
+    if (error || !data) {
+        alert('NO SE PUDO OBTENER EL DOCUMENTO DESDE LA NUBE.');
         return;
     }
 
-    const project = JSON.parse(savedData);
-
-    currentLoadedId = project.docName;
-    document.getElementById('project-name').value = project.docName;
-    document.getElementById('bar-length').value = project.barLength;
-    document.getElementById('blade-width').value = project.bladeWidth;
-    partsList = JSON.parse(JSON.stringify(project.partsList || []));
+    currentLoadedId = data.doc_name;
+    document.getElementById('project-name').value = data.doc_name;
+    document.getElementById('bar-length').value = data.bar_length;
+    document.getElementById('blade-width').value = data.blade_width;
+    partsList = JSON.parse(JSON.stringify(data.parts_list || []));
     editingIndex = null;
 
-    setOrderDataFields(project.orderData);
+    setOrderDataFields(data.order_data);
 
     renderPartsTable();
     updateButtonStates();
@@ -338,23 +374,32 @@ document.getElementById('btn-load-project').addEventListener('click', () => {
     document.getElementById('btn-optimize').click();
 });
 
-document.getElementById('btn-delete-project').addEventListener('click', () => {
+document.getElementById('btn-delete-project').addEventListener('click', async () => {
     const selectedDoc = document.getElementById('saved-projects-select').value;
     if (!selectedDoc) {
         alert('SELECCIONE UN DOCUMENTO DE LA LISTA PARA ELIMINAR.');
         return;
     }
 
-    const confirmDelete = window.confirm(`¿ESTÁS SEGURO DE ELIMINAR EL REGISTRO "${selectedDoc}"?`);
+    const confirmDelete = window.confirm(`¿ESTÁS SEGURO DE ELIMINAR EL REGISTRO "${selectedDoc}" DE LA NUBE PARA TODOS?`);
     if (!confirmDelete) return;
 
-    localStorage.removeItem(`DW_PROJ_${selectedDoc}`);
+    const { error } = await supabaseClient
+        .from('projects')
+        .delete()
+        .eq('doc_name', selectedDoc);
+
+    if (error) {
+        alert('ERROR AL ELIMINAR: ' + error.message);
+        return;
+    }
+
     if (currentLoadedId === selectedDoc) {
         currentLoadedId = null;
         clearOrderDataFields();
     }
     
-    populateSavedProjectsDropdown();
+    await populateSavedProjectsDropdown();
     document.getElementById('saved-projects-select').value = "";
     updateButtonStates();
     alert(`EL REGISTRO "${selectedDoc}" FUE ELIMINADO CON ÉXITO.`);
@@ -384,20 +429,34 @@ document.getElementById('btn-new-project').addEventListener('click', () => {
 // EXPORTACIÓN E IMPORTACIÓN DE ARCHIVOS DE REGISTRO
 // =========================================================
 
-document.getElementById('btn-export-project').addEventListener('click', () => {
+document.getElementById('btn-export-project').addEventListener('click', async () => {
     const selectedDoc = document.getElementById('saved-projects-select').value;
     if (!selectedDoc) {
         alert('SELECCIONE UN REGISTRO PARA EXPORTAR.');
         return;
     }
 
-    const savedData = localStorage.getItem(`DW_PROJ_${selectedDoc}`);
-    if (!savedData) {
-        alert('NO SE ENCONTRÓ EL DOCUMENTO SELECCIONADO.');
+    const { data, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .eq('doc_name', selectedDoc)
+        .single();
+
+    if (error || !data) {
+        alert('NO SE PUDO OBTENER EL REGISTRO.');
         return;
     }
 
-    const blob = new Blob([savedData], { type: 'application/json' });
+    const exportObject = {
+        docName: data.doc_name,
+        barLength: data.bar_length,
+        bladeWidth: data.blade_width,
+        partsList: data.parts_list,
+        orderData: data.order_data,
+        updatedAt: data.updated_at
+    };
+
+    const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     
     const a = document.createElement('a');
@@ -418,7 +477,7 @@ document.getElementById('import-file-input').addEventListener('change', function
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(evt) {
+    reader.onload = async function(evt) {
         try {
             const project = JSON.parse(evt.target.result);
 
@@ -428,20 +487,30 @@ document.getElementById('import-file-input').addEventListener('change', function
             }
 
             const docName = project.docName.toUpperCase();
-            const storageKey = `DW_PROJ_${docName}`;
 
-            if (localStorage.getItem(storageKey) !== null) {
-                const overwrite = window.confirm(`EL REGISTRO "${docName}" YA EXISTE LOCALMENTE. ¿DESEAS SOBREESCRIBIRLO?`);
-                if (!overwrite) return;
+            const projectData = {
+                doc_name: docName,
+                bar_length: project.barLength,
+                blade_width: project.bladeWidth || 2,
+                parts_list: project.partsList,
+                order_data: project.orderData || {},
+                updated_at: new Date().toISOString()
+            };
+
+            const { error } = await supabaseClient
+                .from('projects')
+                .upsert([projectData]);
+
+            if (error) {
+                alert('ERROR AL SUBIR A LA NUBE: ' + error.message);
+                return;
             }
 
-            localStorage.setItem(storageKey, JSON.stringify(project));
-
-            populateSavedProjectsDropdown();
+            await populateSavedProjectsDropdown();
             document.getElementById('saved-projects-select').value = docName;
             updateButtonStates();
 
-            const autoLoad = window.confirm(`REGISTRO "${docName}" IMPORTADO Y GUARDADO CON ÉXITO.\n¿DESEAS CARGARLO EN PANTALLA AHORA?`);
+            const autoLoad = window.confirm(`REGISTRO "${docName}" IMPORTADO A LA NUBE CON ÉXITO.\n¿DESEAS CARGARLO EN PANTALLA AHORA?`);
             if (autoLoad) {
                 document.getElementById('btn-load-project').click();
             }
