@@ -1,0 +1,145 @@
+/* =========================================================
+   TEMA UNIFICADO TMNT - DATAWAVES OPTIMIZER
+   ========================================================= */
+
+:root {
+    --dw-accent: #78B242;
+    --dw-accent-light: #92ca5b;
+    --dw-accent-hover: rgba(120, 178, 66, 0.15);
+    --dw-bg-main: #1a1a20;
+    --dw-header: #141419;
+    --dw-bg-card: #23232b;
+    --dw-bg-input: #30303b;
+    --dw-border: #3F3F4D;
+    --dw-text-main: #c2c2d0;
+}
+
+html, body,
+html.dw-theme-tmnt, 
+body.dw-theme-tmnt {
+    background-color: var(--dw-bg-main) !important;
+    color: var(--dw-text-main) !important;
+    font-family: system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body * {
+    color: var(--dw-text-main);
+}
+
+/* CAMPOS DE FORMULARIO Y SELECTS */
+.form-control, select, input {
+    background-color: var(--dw-bg-input) !important;
+    color: var(--dw-text-main) !important;
+    border: 1px solid var(--dw-border) !important;
+    padding: 10px 12px;
+    border-radius: 4px;
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+input::placeholder {
+    color: #71717a !important;
+}
+
+/* TARJETAS Y CONTENEDORES */
+.card {
+    background-color: var(--dw-bg-card) !important;
+    border: 1px solid var(--dw-border) !important;
+}
+
+header.main-header {
+    background-color: var(--dw-header) !important;
+    border-bottom: 1px solid var(--dw-border) !important;
+}
+
+/* TABLAS */
+table, .table {
+    width: 100%;
+    background-color: var(--dw-bg-card) !important;
+    border-color: var(--dw-border) !important;
+}
+
+.table th {
+    background-color: #3F3F4D !important;
+    color: #C2C2D0 !important;
+    border-bottom: 2px solid var(--dw-border) !important;
+}
+
+.table td, .table th {
+    border: 1px solid var(--dw-border);
+    padding: 10px 12px;
+}
+
+/* BOTONES PRINCIPALES (VERDE POR DEFECTO CON MÁXIMA PRIORIDAD) */
+.btn, .btn-primary, button.btn-primary, #btn-add-part, #btn-optimize {
+    background-color: var(--dw-accent, #78B242) !important;
+    border: 1px solid var(--dw-accent, #78B242) !important;
+    color: #ffffff !important;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+    font-weight: 600;
+}
+
+.btn-primary:hover, #btn-add-part:hover, #btn-optimize:hover {
+    background-color: var(--dw-accent-light, #92ca5b) !important;
+    border-color: var(--dw-accent-light, #92ca5b) !important;
+}
+
+/* BOTONES DE TABLA (EDITAR / ELIMINAR) */
+.btn-action-edit {
+    background-color: var(--dw-accent, #78B242) !important;
+    border: none !important;
+    color: #ffffff !important;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-action-edit:hover {
+    background-color: var(--dw-accent-light, #92ca5b) !important;
+}
+
+.btn-action-delete {
+    background-color: #bb3030 !important;
+    border: none !important;
+    color: #ffffff !important;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-action-delete:hover {
+    background-color: #d64f4f !important;
+}
+
+/* =========================================================
+   SELECCIÓN DE ACENTOS (SKIN TMNT)
+   ========================================================= */
+[data-accent="maiki"] {
+    --dw-accent: #b35500; --dw-accent-light: #cc7429; --dw-accent-hover: rgba(179, 85, 0, 0.12);
+}
+[data-accent="leo"] {
+    --dw-accent: #278dbb; --dw-accent-light: #52a5cc; --dw-accent-hover: rgba(39, 141, 187, 0.12);
+}
+[data-accent="rafa"] {
+    --dw-accent: #bb3030; --dw-accent-light: #d64f4f; --dw-accent-hover: rgba(187, 48, 48, 0.12);
+}
+[data-accent="doni"] {
+    --dw-accent: #7a3bbb; --dw-accent-light: #965acc; --dw-accent-hover: rgba(122, 59, 187, 0.12);
+}
+[data-accent="verde"] {
+    --dw-accent: #78B242; --dw-accent-light: #92ca5b; --dw-accent-hover: rgba(120, 178, 66, 0.15);
+}
+[data-accent="chocolate"] {
+    --dw-accent: #75505D; --dw-accent-light: #916876; --dw-accent-hover: rgba(117, 80, 93, 0.18);
+}

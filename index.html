@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es" class="dw-theme-tmnt" data-accent="verde" data-clarity="0">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPTIMIZADOR DE CORTES LINEALES - DATAWAVES</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .field-locked {
+            background-color: #1f1f26 !important;
+            color: #8c8c9e !important;
+            border-color: #383846 !important;
+            cursor: not-allowed !important;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body class="dw-theme-tmnt" data-accent="verde" style="background-color: #1a1a20; color: #c2c2d0;">
+
+    <!-- HEADER / BARRA SUPERIOR -->
+    <header class="main-header" style="background-color: #141419; border-bottom: 1px solid #3F3F4D;">
+        <div class="main-header-left" style="padding: 15px 20px; display: flex; align-items: center;">
+            <span style="font-size: 20px; font-weight: bold; letter-spacing: 1px; color: #c2c2d0;">DATAWAVES <span class="dw-logo-dynamic-fill" style="color: #78B242;">OPTIMIZER</span></span>
+        </div>
+    </header>
+
+    <div class="page-wrapper" style="padding: 30px;">
+        <div class="container-fluid">
+            
+            <!-- TARJETA DE CONFIGURACIÓN DEL PROYECTO Y REGISTROS -->
+            <div class="card" style="background-color: #23232b; border: 1px solid #3F3F4D; padding: 25px; margin-bottom: 25px; border-radius: 8px;">
+                
+                <div style="display: grid; grid-template-columns: 2.3fr 1fr; gap: 25px; align-items: start;">
+                    
+                    <!-- COLUMNA IZQUIERDA: DATOS DE LA ORDEN -->
+                    <div style="display: flex; flex-direction: column; gap: 18px;">
+                        
+                        <!-- CAMPOS SUPERIORES -->
+                        <div style="display: grid; grid-template-columns: 75px 75px 3.2fr 1.3fr 1.3fr; gap: 8px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 4px; font-size: 10px; color: #9e9ea6; text-transform: uppercase;">ID</label>
+                                <input type="text" id="doc-id" class="form-control" autocomplete="off">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 4px; font-size: 10px; color: #9e9ea6; text-transform: uppercase;">OF</label>
+                                <input type="text" id="doc-of" class="form-control field-locked" disabled readonly>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 4px; font-size: 10px; color: #9e9ea6; text-transform: uppercase;">DESCRIPCIÓN</label>
+                                <input type="text" id="doc-descripcion" class="form-control field-locked" disabled readonly>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 4px; font-size: 10px; color: #9e9ea6; text-transform: uppercase;">CLIENTE</label>
+                                <input type="text" id="doc-cliente" class="form-control field-locked" disabled readonly>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 4px; font-size: 10px; color: #9e9ea6; text-transform: uppercase;">OBRA</label>
+                                <input type="text" id="doc-obra" class="form-control field-locked" disabled readonly>
+                            </div>
+                        </div>
+
+                        <!-- SECCIÓN DOCUMENTO (NOMBRE DEL PROYECTO) -->
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #c2c2d0;">DOCUMENTO:</label>
+                            <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 8px;">
+                                <input type="text" id="project-name" class="form-control" value="" placeholder="NOMBRE DEL PROYECTO">
+                                <button id="btn-update-project" class="btn" style="background-color: #278dbb !important; color: #ffffff !important; padding: 10px 15px; border-radius: 4px; border: none !important; font-weight: 600; cursor: pointer; outline: none; opacity: 0.5;" disabled>ACTUALIZAR</button>
+                                <button id="btn-save-project" class="btn" style="background-color: var(--dw-accent, #78B242) !important; color: #ffffff !important; padding: 10px 15px; border-radius: 4px; border: none !important; font-weight: 600; cursor: pointer; outline: none; opacity: 0.5;" disabled>REGISTRAR</button>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #c2c2d0;">LONGITUD DEL PERFIL</label>
+                                <input type="number" id="bar-length" class="form-control" value="6000" min="100">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #c2c2d0;">PERDIDA DE CORTE (mm)</label>
+                                <input type="number" id="blade-width" class="form-control" value="2" min="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COLUMNA DERECHA: ZONA REGISTRO -->
+                    <div style="border-left: 1px solid #3F3F4D; padding-left: 25px; display: flex; flex-direction: column; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #c2c2d0;">REGISTRO</label>
+                            <select id="saved-projects-select" class="form-control">
+                                <option value="">-- SELECCIONAR --</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <button id="btn-new-project" class="btn" style="background-color: #78B242 !important; color: #ffffff !important; padding: 10px 15px; border-radius: 4px; border: none !important; font-weight: 600; cursor: pointer; width: 100%; outline: none; opacity: 0.5;" disabled>NUEVO</button>
+                            <button id="btn-load-project" class="btn" style="background-color: #d9822b !important; color: #ffffff !important; padding: 10px 15px; border-radius: 4px; border: none !important; font-weight: 600; cursor: pointer; width: 100% !important; outline: none;">CARGAR</button>
+                            <button id="btn-delete-project" class="btn" style="background-color: #bb3030 !important; color: #ffffff !important; padding: 10px 15px; border-radius: 4px; border: none !important; font-weight: 600; cursor: pointer; width: 100%; outline: none; opacity: 0.5;" disabled>ELIMINAR</button>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                                <button id="btn-import-project" class="btn" style="background-color: #7a3bbb !important; color: #ffffff !important; padding: 10px 15px; border-radius: 4px; border: none !important; font-weight: 600; cursor: pointer; width: 100%; outline: none;">IMPORTAR</button>
+                                <button id="btn-export-project" class="btn" style="background-color: #9b42e6 !important; color: #ffffff !important; padding: 10px 15px; border-radius: 4px; border: none !important; font-weight: 600; cursor: pointer; width: 100%; outline: none; opacity: 0.5;" disabled>EXPORTAR</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- RESULTADOS DE LA OPTIMIZACIÓN -->
+            <div class="card" style="background-color: #23232b; border: 1px solid #3F3F4D; padding: 25px; border-radius: 8px;" id="results-card">
+                <h4 style="margin-bottom: 20px; font-weight: 600; color: #c2c2d0;">RESULTADOS</h4>
+                <div id="results-container" style="color: #71717a;">
+                    AGREGUE PIEZAS Y PRESIONE "CALCULAR OPTIMIZACIÓN" PARA GENERAR EL PLANO DE BARRAS.
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="optimizer.js"></script>
+
+    <script>
+        const inputId = document.getElementById('doc-id');
+        const inputOf = document.getElementById('doc-of');
+        const inputDesc = document.getElementById('doc-descripcion');
+        const inputCliente = document.getElementById('doc-cliente');
+        const inputObra = document.getElementById('doc-obra');
+
+        function limpiarCamposDependientes() {
+            if (inputOf) inputOf.value = '';
+            if (inputDesc) inputDesc.value = '';
+            if (inputCliente) inputCliente.value = '';
+            if (inputObra) inputObra.value = '';
+        }
+
+        inputId.addEventListener('input', function() {
+            if (this.value.trim() === '') {
+                limpiarCamposDependientes();
+            } else if (!this.value.startsWith('ID:') && !/^\d*$/.test(this.value)) {
+                this.value = this.value.replace(/[^\d]/g, '');
+            }
+        });
+
+        inputId.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const textoPegado = (e.clipboardData || window.clipboardData).getData('text').trim();
+
+            const matchId = textoPegado.match(/ID\s*:\s*([^|]+)/i);
+            const matchOf = textoPegado.match(/OF\s*:\s*([^|]+)/i);
+            const matchCliente = textoPegado.match(/CLIENTE\s*:\s*([^|]+)/i);
+            const matchObra = textoPegado.match(/OBRA\s*:\s*([^|]+)/i);
+            const matchDesc = textoPegado.match(/DESCRIPCI[OÓ]N\s*:\s*([^|]+)/i);
+
+            if (matchId || matchOf) {
+                if (matchId) {
+                    let idLimpio = matchId[1].split('|')[0].trim();
+                    inputId.value = idLimpio.replace(/[^\d]/g, '');
+                }
+                if (matchOf) inputOf.value = matchOf[1].split('|')[0].trim();
+                if (matchCliente) inputCliente.value = matchCliente[1].split('|')[0].trim();
+                if (matchDesc) inputDesc.value = matchDesc[1].split('|')[0].trim();
+
+                if (matchObra) {
+                    let obraBruta = matchObra[1].split('|')[0].trim();
+                    inputObra.value = obraBruta.replace(/^[\d\s-]+/, '').trim();
+                } else {
+                    inputObra.value = '';
+                }
+            } else if (/^\d+$/.test(textoPegado)) {
+                inputId.value = textoPegado;
+                limpiarCamposDependientes();
+            } else {
+                inputId.value = textoPegado;
+            }
+        });
+    </script>
+</body>
+</html>
