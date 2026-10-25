@@ -1,5 +1,5 @@
 // =========================================================
-// DATAWAVES OPTIMIZER - SCRIPT CON SUPABASE CLOUD & REALTIME
+// DATAWAVES OPTIMIZER - LÓGICA DE CONTROL Y SUPABASE
 // =========================================================
 
 const SUPABASE_URL = 'https://sksanvauywgjxmxujicl.supabase.co';
@@ -11,9 +11,7 @@ let partsList = [];
 let editingIndex = null;
 let partColorsMap = {};
 let currentLoadedId = null; 
-
-document.documentElement.setAttribute('data-accent', 'verde');
-document.body.setAttribute('data-accent', 'verde');
+let isColorBlindMode = false; // Estado del modo daltónico
 
 function getOrderData() {
     return {
@@ -26,17 +24,10 @@ function getOrderData() {
 }
 
 function clearOrderDataFields() {
-    const docId = document.getElementById('doc-id');
-    const docOf = document.getElementById('doc-of');
-    const docDesc = document.getElementById('doc-descripcion');
-    const docCliente = document.getElementById('doc-cliente');
-    const docObra = document.getElementById('doc-obra');
-
-    if (docId) docId.value = '';
-    if (docOf) docOf.value = '';
-    if (docDesc) docDesc.value = '';
-    if (docCliente) docCliente.value = '';
-    if (docObra) docObra.value = '';
+    ['doc-id', 'doc-of', 'doc-descripcion', 'doc-cliente', 'doc-obra'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
 }
 
 function setOrderDataFields(orderData) {
@@ -70,131 +61,39 @@ function updateButtonStates() {
     const projectName = document.getElementById('project-name').value.trim();
     const saveBtn = document.getElementById('btn-save-project');
     const updateBtn = document.getElementById('btn-update-project');
-    const newBtn = document.getElementById('btn-new-project');
     const deleteBtn = document.getElementById('btn-delete-project');
     const exportBtn = document.getElementById('btn-export-project');
     const select = document.getElementById('saved-projects-select');
 
     if (projectName.length > 0 && partsList.length > 0) {
         saveBtn.disabled = false;
-        saveBtn.style.opacity = '1';
-        saveBtn.style.cursor = 'pointer';
     } else {
         saveBtn.disabled = true;
-        saveBtn.style.opacity = '0.5';
-        saveBtn.style.cursor = 'not-allowed';
     }
 
     if (currentLoadedId && projectName.length > 0 && partsList.length > 0) {
         updateBtn.disabled = false;
-        updateBtn.style.opacity = '1';
-        updateBtn.style.cursor = 'pointer';
     } else {
         updateBtn.disabled = true;
-        updateBtn.style.opacity = '0.5';
-        updateBtn.style.cursor = 'not-allowed';
-    }
-
-    if (projectName.length > 0 || partsList.length > 0) {
-        newBtn.disabled = false;
-        newBtn.style.opacity = '1';
-        newBtn.style.cursor = 'pointer';
-    } else {
-        newBtn.disabled = true;
-        newBtn.style.opacity = '0.5';
-        newBtn.style.cursor = 'not-allowed';
     }
 
     if (select && select.value !== "") {
         deleteBtn.disabled = false;
-        deleteBtn.style.opacity = '1';
-        deleteBtn.style.cursor = 'pointer';
 
         if (exportBtn) {
             exportBtn.disabled = false;
-            exportBtn.style.opacity = '1';
-            exportBtn.style.cursor = 'pointer';
         }
     } else {
         deleteBtn.disabled = true;
-        deleteBtn.style.opacity = '0.5';
-        deleteBtn.style.cursor = 'not-allowed';
 
         if (exportBtn) {
             exportBtn.disabled = true;
-            exportBtn.style.opacity = '0.5';
-            exportBtn.style.cursor = 'not-allowed';
         }
-    }
-}
-
-function injectFloatingSkinPicker() {
-    const bar = document.createElement('div');
-    bar.id = 'dw-floating-skin-bar';
-    bar.style.cssText = `
-        position: absolute;
-        top: 20px;
-        right: 30px;
-        display: flex;
-        gap: 6px;
-        align-items: center;
-        z-index: 99999;
-    `;
-
-    const accents = [
-        { name: 'maiki', color: '#b35500' },
-        { name: 'leo', color: '#278dbb' },
-        { name: 'rafa', color: '#bb3030' },
-        { name: 'doni', color: '#7a3bbb' },
-        { name: 'verde', color: '#78B242' },
-        { name: 'chocolate', color: '#75505D' }
-    ];
-
-    accents.forEach(acc => {
-        const dot = document.createElement('button');
-        dot.style.cssText = `
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background-color: ${acc.color};
-            border: 2px solid transparent;
-            cursor: pointer;
-            padding: 0;
-            transition: transform 0.2s ease;
-        `;
-        dot.onmouseover = () => dot.style.transform = 'scale(1.25)';
-        dot.onmouseout = () => dot.style.transform = 'scale(1)';
-        dot.onclick = () => {
-            document.documentElement.setAttribute('data-accent', acc.name);
-            document.body.setAttribute('data-accent', acc.name);
-            
-            const accentColors = { 'maiki': '#b35500', 'leo': '#278dbb', 'rafa': '#bb3030', 'doni': '#7a3bbb', 'verde': '#78B242', 'chocolate': '#75505D' };
-            const newColor = accentColors[acc.name] || '#78B242';
-            
-            const logoText = document.querySelector('.dw-logo-dynamic-fill');
-            if (logoText) logoText.style.color = newColor;
-
-            if (editingIndex === null) {
-                const addBtn = document.getElementById('btn-add-part');
-                if (addBtn) addBtn.style.setProperty('background-color', newColor, 'important');
-            }
-            const optBtn = document.getElementById('btn-optimize');
-            if (optBtn) optBtn.style.setProperty('background-color', newColor, 'important');
-            const saveBtn = document.getElementById('btn-save-project');
-            if (saveBtn) saveBtn.style.setProperty('background-color', newColor, 'important');
-        };
-        bar.appendChild(dot);
-    });
-
-    const header = document.querySelector('header');
-    if (header) {
-        header.style.position = 'relative';
-        header.appendChild(bar);
     }
 }
 
 // =========================================================
-// GESTIÓN DE SUPABASE (CON ACTUALIZACIÓN AUTOMÁTICA)
+// SUPABASE REALTIME Y PROYECTOS
 // =========================================================
 
 async function populateSavedProjectsDropdown(keepSelected = true) {
@@ -231,11 +130,10 @@ async function populateSavedProjectsDropdown(keepSelected = true) {
     updateButtonStates();
 }
 
-// ESCUCHADOR EN TIEMPO REAL: Si otra PC guarda o borra, se actualiza la lista solo
 function initRealtimeSync() {
     supabaseClient
         .channel('public:projects')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, payload => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
             populateSavedProjectsDropdown(true);
         })
         .subscribe();
@@ -245,9 +143,104 @@ document.getElementById('project-name').addEventListener('input', () => {
     updateButtonStates();
 });
 
-document.getElementById('saved-projects-select').addEventListener('change', () => {
-    updateButtonStates();
+// EVENTO PARA EL BOTÓN DE MODO DALTÓNICO (OJO)
+document.getElementById('btn-colorblind-mode').addEventListener('click', () => {
+    isColorBlindMode = !isColorBlindMode;
+    const btn = document.getElementById('btn-colorblind-mode');
+    
+    if (isColorBlindMode) {
+        btn.classList.add('active-mode');
+        btn.style.backgroundColor = 'rgba(179, 85, 0, 0.2)';
+        btn.style.borderRadius = '4px';
+    } else {
+        btn.classList.remove('active-mode');
+        btn.style.backgroundColor = 'transparent';
+    }
+
+    // Recalcular/renderizar resultados si ya hay piezas optimizadas
+    if (partsList.length > 0) {
+        document.getElementById('btn-optimize').click();
+    }
 });
+
+// CONTROL INTELIGENTE DEL SELECTOR (CARGAR / NUEVO AUTOMÁTICO)
+let lastSelectedValue = "";
+
+document.getElementById('saved-projects-select').addEventListener('change', async function() {
+    const selectedDoc = this.value;
+    const hasProgress = document.getElementById('project-name').value.trim().length > 0 || partsList.length > 0;
+
+    if (selectedDoc === "") {
+        if (hasProgress) {
+            const confirmNew = window.confirm('¿ESTÁS SEGURO DE CREAR UN NUEVO PROYECTO? SE PERDERÁ EL PROGRESO NO GUARDADO.');
+            if (!confirmNew) {
+                this.value = lastSelectedValue;
+                return;
+            }
+        }
+        executeNewProjectReset();
+        lastSelectedValue = "";
+        return;
+    }
+
+    if (hasProgress) {
+        const confirmarCarga = window.confirm('¿ESTAS SEGURO DE CARGAR UN REGISTRO EXISTENTE? PERDERAS EL PROGRESO ACTUAL.');
+        if (!confirmarCarga) {
+            this.value = lastSelectedValue;
+            return;
+        }
+    }
+
+    lastSelectedValue = selectedDoc;
+    await loadProjectData(selectedDoc);
+});
+
+async function loadProjectData(selectedDoc) {
+    const { data, error } = await supabaseClient
+        .from('projects')
+        .select('*')
+        .eq('doc_name', selectedDoc)
+        .single();
+
+    if (error || !data) {
+        alert('NO SE PUDO OBTENER EL DOCUMENTO DESDE LA NUBE.');
+        return;
+    }
+
+    currentLoadedId = data.doc_name;
+    document.getElementById('project-name').value = data.doc_name;
+    document.getElementById('bar-length').value = data.bar_length;
+    document.getElementById('blade-width').value = data.blade_width;
+    partsList = JSON.parse(JSON.stringify(data.parts_list || []));
+    editingIndex = null;
+
+    setOrderDataFields(data.order_data);
+
+    renderPartsTable();
+    updateButtonStates();
+    
+    document.getElementById('btn-optimize').click();
+}
+
+function executeNewProjectReset() {
+    currentLoadedId = null;
+    document.getElementById('project-name').value = '';
+    document.getElementById('bar-length').value = '6000';
+    document.getElementById('blade-width').value = '2';
+    document.getElementById('saved-projects-select').value = '';
+    document.getElementById('part-name').value = '';
+    document.getElementById('part-length').value = '';
+    document.getElementById('part-qty').value = '';
+    
+    clearOrderDataFields();
+
+    partsList = [];
+    editingIndex = null;
+    renderPartsTable();
+    updateButtonStates();
+
+    document.getElementById('results-container').innerHTML = 'AGREGUE PIEZAS Y PRESIONE "CALCULAR OPTIMIZACIÓN" PARA GENERAR EL PLANO DE BARRAS.';
+}
 
 document.getElementById('btn-save-project').addEventListener('click', async () => {
     let rawDocName = document.getElementById('project-name').value.trim();
@@ -259,7 +252,10 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     const barLength = parseFloat(document.getElementById('bar-length').value);
     const bladeWidth = parseFloat(document.getElementById('blade-width').value) || 0;
 
-    if (!docName || partsList.length === 0) return;
+    if (!docName || partsList.length === 0) {
+        alert('DEBE INGRESAR UN NOMBRE DE PROYECTO Y AL MENOS UNA PIEZA PARA REGISTRAR.');
+        return;
+    }
 
     const { data: existing } = await supabaseClient
         .from('projects')
@@ -292,6 +288,7 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     
     await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = docName;
+    lastSelectedValue = docName;
     updateButtonStates();
     alert(`EL REGISTRO "${docName}" HA SIDO GUARDADO EN LA NUBE EXITOSAMENTE.`);
 });
@@ -306,7 +303,10 @@ document.getElementById('btn-update-project').addEventListener('click', async ()
     const barLength = parseFloat(document.getElementById('bar-length').value);
     const bladeWidth = parseFloat(document.getElementById('blade-width').value) || 0;
 
-    if (!docName || partsList.length === 0 || !currentLoadedId) return;
+    if (!docName || partsList.length === 0 || !currentLoadedId) {
+        alert('NO HAY UN REGISTRO CARGADO PARA ACTUALIZAR.');
+        return;
+    }
 
     const confirmar = window.confirm('¿ESTÁS SEGURO DE ACTUALIZAR ESTE REGISTRO EN LA NUBE?');
     if (!confirmar) return;
@@ -337,48 +337,9 @@ document.getElementById('btn-update-project').addEventListener('click', async ()
 
     await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = docName;
+    lastSelectedValue = docName;
     updateButtonStates();
     alert(`EL REGISTRO "${docName}" FUE ACTUALIZADO CON ÉXITO.`);
-});
-
-document.getElementById('btn-load-project').addEventListener('click', async () => {
-    const selectedDoc = document.getElementById('saved-projects-select').value;
-    if (!selectedDoc) {
-        alert('SELECCIONE UN DOCUMENTO DE LA LISTA PARA CARGAR.');
-        return;
-    }
-
-    const hasProgress = document.getElementById('project-name').value.trim().length > 0 || partsList.length > 0;
-
-    if (hasProgress) {
-        const confirmarCarga = window.confirm('¿ESTAS SEGURO DE CARGAR UN REGISTRO EXISTENTE? PERDERAS EL PROGRESO ACTUAL.');
-        if (!confirmarCarga) return;
-    }
-
-    const { data, error } = await supabaseClient
-        .from('projects')
-        .select('*')
-        .eq('doc_name', selectedDoc)
-        .single();
-
-    if (error || !data) {
-        alert('NO SE PUDO OBTENER EL DOCUMENTO DESDE LA NUBE.');
-        return;
-    }
-
-    currentLoadedId = data.doc_name;
-    document.getElementById('project-name').value = data.doc_name;
-    document.getElementById('bar-length').value = data.bar_length;
-    document.getElementById('blade-width').value = data.blade_width;
-    partsList = JSON.parse(JSON.stringify(data.parts_list || []));
-    editingIndex = null;
-
-    setOrderDataFields(data.order_data);
-
-    renderPartsTable();
-    updateButtonStates();
-    
-    document.getElementById('btn-optimize').click();
 });
 
 document.getElementById('btn-delete-project').addEventListener('click', async () => {
@@ -408,32 +369,13 @@ document.getElementById('btn-delete-project').addEventListener('click', async ()
     
     await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = "";
+    lastSelectedValue = "";
     updateButtonStates();
     alert(`EL REGISTRO "${selectedDoc}" FUE ELIMINADO CON ÉXITO.`);
 });
 
-document.getElementById('btn-new-project').addEventListener('click', () => {
-    currentLoadedId = null;
-    document.getElementById('project-name').value = '';
-    document.getElementById('bar-length').value = '6000';
-    document.getElementById('blade-width').value = '2';
-    document.getElementById('saved-projects-select').value = '';
-    document.getElementById('part-name').value = '';
-    document.getElementById('part-length').value = '';
-    document.getElementById('part-qty').value = '';
-    
-    clearOrderDataFields();
-
-    partsList = [];
-    editingIndex = null;
-    renderPartsTable();
-    updateButtonStates();
-
-    document.getElementById('results-container').innerHTML = 'AGREGUE PIEZAS Y PRESIONE "CALCULAR OPTIMIZACIÓN" PARA GENERAR EL PLANO DE BARRAS.';
-});
-
 // =========================================================
-// EXPORTACIÓN E IMPORTACIÓN DE ARCHIVOS DE REGISTRO
+// IMPORTACIÓN Y EXPORTACIÓN JSON
 // =========================================================
 
 document.getElementById('btn-export-project').addEventListener('click', async () => {
@@ -515,11 +457,20 @@ document.getElementById('import-file-input').addEventListener('change', function
 
             await populateSavedProjectsDropdown(false);
             document.getElementById('saved-projects-select').value = docName;
+            lastSelectedValue = docName;
             updateButtonStates();
 
             const autoLoad = window.confirm(`REGISTRO "${docName}" IMPORTADO A LA NUBE CON ÉXITO.\n¿DESEAS CARGARLO EN PANTALLA AHORA?`);
             if (autoLoad) {
-                document.getElementById('btn-load-project').click();
+                currentLoadedId = project.docName;
+                document.getElementById('project-name').value = project.docName;
+                document.getElementById('bar-length').value = project.barLength;
+                document.getElementById('blade-width').value = project.bladeWidth || 2;
+                partsList = JSON.parse(JSON.stringify(project.partsList || []));
+                setOrderDataFields(project.orderData);
+                renderPartsTable();
+                updateButtonStates();
+                document.getElementById('btn-optimize').click();
             }
         } catch (err) {
             alert('ERROR AL LEER EL ARCHIVO JSON: ' + err.message);
@@ -551,12 +502,12 @@ document.getElementById('btn-add-part').addEventListener('click', () => {
         return;
     }
 
+    const addBtn = document.getElementById('btn-add-part');
+
     if (editingIndex !== null) {
         partsList[editingIndex] = { name, length, qty };
         editingIndex = null;
-        const addBtn = document.getElementById('btn-add-part');
-        addBtn.textContent = 'AGREGAR PIEZA';
-        addBtn.style.backgroundColor = '';
+        addBtn.title = 'Agregar pieza';
     } else {
         partsList.push({ name, length, qty });
     }
@@ -575,24 +526,29 @@ function renderPartsTable() {
     tbody.innerHTML = '';
 
     if (partsList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #71717a;">NO HAY PIEZAS AGREGADAS.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #555566; padding: 12px; font-size: 11px;">NO HAY PIEZAS AGREGADAS.</td></tr>`;
         return;
     }
 
     partsList.forEach((part, index) => {
         const tr = document.createElement('tr');
-        
+        tr.style.borderBottom = '1px solid #2a2a36';
+
         let isEditing = (index === editingIndex);
-        let rowStyle = isEditing ? 'color: #d9822b !important; font-weight: bold;' : '';
+        let rowStyle = isEditing ? 'color: #e06b00 !important; font-weight: bold;' : 'color: #c2c2d0;';
 
         tr.innerHTML = `
-            <td style="border: 1px solid var(--dw-border); padding: 10px 12px; vertical-align: middle;"><span style="${rowStyle}">${part.name.toUpperCase()}</span></td>
-            <td style="border: 1px solid var(--dw-border); padding: 10px 12px; vertical-align: middle;"><span style="${rowStyle}">${part.length} mm</span></td>
-            <td style="border: 1px solid var(--dw-border); padding: 10px 12px; vertical-align: middle;"><span style="${rowStyle}">${part.qty}</span></td>
-            <td style="border: 1px solid var(--dw-border); padding: 10px 12px; text-align: center; vertical-align: middle;">
-                <div style="display: inline-flex; gap: 8px; justify-content: center; align-items: center;">
-                    <button class="btn-action-edit" data-index="${index}" style="${isEditing ? 'background-color: #d9822b !important;' : ''}">${isEditing ? 'CANCELAR' : 'EDITAR'}</button>
-                    <button class="btn-action-delete" data-index="${index}">ELIMINAR</button>
+            <td style="padding: 6px 10px; font-size: 11px;"><span style="${rowStyle}">${part.name.toUpperCase()}</span></td>
+            <td style="padding: 6px 10px; font-size: 11px;"><span style="${rowStyle}">${part.length} mm</span></td>
+            <td style="padding: 6px 10px; font-size: 11px;"><span style="${rowStyle}">${part.qty}</span></td>
+            <td style="padding: 6px 10px; text-align: center;">
+                <div style="display: inline-flex; gap: 10px; justify-content: center; align-items: center;">
+                    <button class="icon-btn btn-action-edit" data-index="${index}" title="${isEditing ? 'Cancelar' : 'Editar'}">
+                        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="icon-btn btn-action-delete" data-index="${index}" title="Eliminar">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
                 </div>
             </td>
         `;
@@ -601,15 +557,21 @@ function renderPartsTable() {
 
     document.querySelectorAll('.btn-action-edit').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const index = parseInt(e.target.getAttribute('data-index'));
-            editPart(index);
+            const target = e.target.closest('.btn-action-edit');
+            if (target) {
+                const index = parseInt(target.getAttribute('data-index'));
+                editPart(index);
+            }
         });
     });
 
     document.querySelectorAll('.btn-action-delete').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const index = parseInt(e.target.getAttribute('data-index'));
-            confirmRemovePart(index);
+            const target = e.target.closest('.btn-action-delete');
+            if (target) {
+                const index = parseInt(target.getAttribute('data-index'));
+                confirmRemovePart(index);
+            }
         });
     });
 }
@@ -619,8 +581,7 @@ function editPart(index) {
 
     if (editingIndex === index) {
         editingIndex = null;
-        addBtn.textContent = 'AGREGAR PIEZA';
-        addBtn.style.backgroundColor = '';
+        addBtn.title = 'Agregar pieza';
         document.getElementById('part-name').value = '';
         document.getElementById('part-length').value = '';
         document.getElementById('part-qty').value = '';
@@ -634,13 +595,11 @@ function editPart(index) {
     document.getElementById('part-qty').value = part.qty;
     editingIndex = index;
     
-    addBtn.textContent = 'ACTUALIZAR PIEZA';
-    addBtn.style.setProperty('background-color', '#d9822b', 'important');
-    addBtn.style.setProperty('border-color', '#d9822b', 'important');
+    addBtn.title = 'Actualizar pieza';
     
     renderPartsTable();
     document.getElementById('part-name').focus();
-};
+}
 
 function confirmRemovePart(index) {
     const part = partsList[index];
@@ -655,16 +614,16 @@ function removePart(index) {
     if (editingIndex === index) {
         editingIndex = null;
         const addBtn = document.getElementById('btn-add-part');
-        addBtn.textContent = 'AGREGAR PIEZA';
-        addBtn.style.backgroundColor = '';
+        addBtn.title = 'Agregar pieza';
         document.getElementById('part-name').value = '';
         document.getElementById('part-length').value = '';
         document.getElementById('part-qty').value = '';
     }
     renderPartsTable();
     updateButtonStates();
-};
+}
 
+// GENERADOR DE COLORES Y PATRONES ADAPTADOS PARA MODO DALTÓNICO
 function getPartColor(name) {
     if (!partColorsMap[name]) {
         let hash = 0;
@@ -672,10 +631,18 @@ function getPartColor(name) {
             hash = name.charCodeAt(i) + ((hash << 5) - hash);
         }
         let hue = Math.abs(hash * 137) % 360;
-        partColorsMap[name] = `hsl(${hue}, 65%, 65%)`;
+        partColorsMap[name] = {
+            normal: `hsl(${hue}, 55%, 55%)`,
+            // Alto contraste y diferenciación segura para daltónicos (Tonos optimizados y alta saturación)
+            colorblind: `hsl(${(hue * 3) % 360}, 90%, 45%)`
+        };
     }
-    return partColorsMap[name];
+    return isColorBlindMode ? partColorsMap[name].colorblind : partColorsMap[name].normal;
 }
+
+// =========================================================
+// OPTIMIZACIÓN DE BARRAS
+// =========================================================
 
 document.getElementById('btn-optimize').addEventListener('click', () => {
     const projectName = document.getElementById('project-name').value.trim() || 'PROYECTO SIN NOMBRE';
@@ -740,24 +707,23 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
     const container = document.getElementById('results-container');
 
     let html = `
-        <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-            <div style="font-size: 14px; display: flex; align-items: center; gap: 15px;">
+        <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 11px; display: flex; align-items: center; gap: 12px;">
                 <span><strong>DOCUMENTO:</strong> ${projectName.toUpperCase()}</span>
-                <span class="badge-total-bars" style="background: transparent; color: var(--dw-text-main); padding: 5px 10px; border-radius: 4px; font-weight: bold; border: 1px solid var(--dw-border);">
+                <span style="border: 1px solid #383846; padding: 3px 8px; border-radius: 4px; font-weight: bold;">
                     BARRAS TOTALES: ${totalUsedBars}
                 </span>
             </div>
-            <button id="btn-print-report" class="btn btn-primary" style="padding: 6px 15px; border-radius: 4px; font-size: 12px; cursor: pointer;">IMPRIMIR REPORTE</button>
+            <button id="btn-print-report" class="btn-app" style="background-color: #b35500; color: #ffffff;">IMPRIMIR REPORTE</button>
         </div>
 
-        <!-- REPORTE EN PANTALLA Y EN IMPRESIÓN: LISTADO DE PIEZAS -->
-        <div class="print-parts-summary" style="margin-bottom: 20px; background: var(--dw-bg-input); padding: 15px; border-radius: 6px; border: 1px solid var(--dw-border);">
-            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <div class="print-parts-summary" style="margin-bottom: 12px; background: #23232c; padding: 10px; border-radius: 4px; border: 1px solid #2f2f3d;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
                 <thead>
-                    <tr style="background: #3F3F4D; color: #C2C2D0;">
-                        <th style="padding: 8px; text-align: left; border: 1px solid var(--dw-border);">LISTA DE PIEZAS</th>
-                        <th style="padding: 8px; text-align: left; border: 1px solid var(--dw-border);">LONGITUD (mm)</th>
-                        <th style="padding: 8px; text-align: center; border: 1px solid var(--dw-border);">CANTIDAD</th>
+                    <tr style="background: #2d2c38; color: #a5a5b5;">
+                        <th style="padding: 5px; text-align: left; border: 1px solid #383846;">LISTA DE PIEZAS</th>
+                        <th style="padding: 5px; text-align: left; border: 1px solid #383846;">LONGITUD (mm)</th>
+                        <th style="padding: 5px; text-align: center; border: 1px solid #383846;">CANTIDAD</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -766,9 +732,9 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
     partsList.forEach(p => {
         html += `
                     <tr>
-                        <td style="padding: 6px 8px; border: 1px solid var(--dw-border);">${p.name.toUpperCase()}</td>
-                        <td style="padding: 6px 8px; border: 1px solid var(--dw-border);">${p.length} mm</td>
-                        <td style="padding: 6px 8px; border: 1px solid var(--dw-border); text-align: center;">${p.qty}</td>
+                        <td style="padding: 4px 6px; border: 1px solid #383846;">${p.name.toUpperCase()}</td>
+                        <td style="padding: 4px 6px; border: 1px solid #383846;">${p.length} mm</td>
+                        <td style="padding: 4px 6px; border: 1px solid #383846; text-align: center;">${p.qty}</td>
                     </tr>
         `;
     });
@@ -778,8 +744,7 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
             </table>
         </div>
 
-        <!-- PLANO VISUAL DE BARRAS -->
-        <div style="display: flex; flex-direction: column; gap: 15px;">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
     `;
 
     groups.forEach((group, idx) => {
@@ -789,24 +754,27 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
         let efficiency = ((barUsedLength / barLength) * 100).toFixed(1);
 
         html += `
-            <div class="print-bar-card" style="background: var(--dw-bg-input); padding: 15px; border-radius: 6px; border: 1px solid var(--dw-border);">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span style="font-weight: bold; font-size: 14px;">CANT ${group.count}</span>
-                        <span>BARRA ${barNum} | UTILIZADO: ${barUsedLength} mm / SOBRANTE: ${waste} mm | EFICIENCIA: <strong style="color: var(--dw-accent);">${efficiency}%</strong></span>
+            <div class="print-bar-card bar-hover-effect" style="background: #23232c; padding: 10px; border-radius: 4px; border: 1px solid #2f2f3d; transition: all 0.2s ease;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-weight: bold;">CANT ${group.count}</span>
+                        <span>BARRA ${barNum} | UTILIZADO: ${barUsedLength} mm / SOBRANTE: ${waste} mm | EFICIENCIA: <strong>${efficiency}%</strong></span>
                     </div>
                 </div>
-                <div class="print-bar-track" style="height: 32px; background: #141418; border-radius: 4px; display: flex; overflow: hidden; border: 1px solid var(--dw-border);">
+                <div class="print-bar-track" style="height: 26px; background: #121217; border-radius: 3px; display: flex; overflow: hidden; border: 1px solid #2f2f3d;">
         `;
 
         group.cuts.forEach((cut) => {
             let widthPercent = (cut.length / barLength) * 100;
             let partColor = getPartColor(cut.name);
             
+            // Si el modo daltónico está activo, aplicamos patrones geométricos adicionales de textura a los bloques de corte para asegurar máxima distinción visual
+            let patternStyle = isColorBlindMode ? `; background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255, 255, 255, 0.15) 4px, rgba(255, 255, 255, 0.15) 8px)` : '';
+            
             html += `
-                <div class="print-cut-block" title="${cut.name}: ${cut.length}" style="width: ${widthPercent}%; background: ${partColor}; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #000; overflow: hidden; white-space: nowrap; border-right: 1px solid #141418; padding: 2px; box-sizing: border-box;" >
-                    <strong style="font-size: 9px; line-height: 10px; text-overflow: ellipsis; overflow: hidden; max-width: 100%; color: #000;">${cut.name.toUpperCase()}</strong>
-                    <span style="font-size: 9px; font-weight: bold; color: #000;">${cut.length}</span>
+                <div class="print-cut-block" title="${cut.name}: ${cut.length}" style="width: ${widthPercent}%; background-color: ${partColor}${patternStyle}; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; overflow: hidden; white-space: nowrap; border-right: 1px solid #121217; padding: 2px; box-sizing: border-box;" >
+                    <strong style="font-size: 8px; line-height: 9px; text-overflow: ellipsis; overflow: hidden; max-width: 100%; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">${cut.name.toUpperCase()}</strong>
+                    <span style="font-size: 8px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">${cut.length}</span>
                 </div>
             `;
         });
@@ -814,7 +782,7 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
         if (waste > 0) {
             let wastePercent = (waste / barLength) * 100;
             html += `
-                <div class="print-waste-block" title="Sobrante: ${waste}mm" style="width: ${wastePercent}%; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.08), rgba(255,255,255,0.08) 6px, transparent 6px, transparent 12px);"></div>
+                <div class="print-waste-block" title="Sobrante: ${waste}mm" style="width: ${wastePercent}%; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05), rgba(255,255,255,0.05) 5px, transparent 5px, transparent 10px);"></div>
             `;
         }
 
@@ -835,34 +803,40 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
     }
 }
 
-// ESTILOS DE IMPRESIÓN
-const printStyle = document.createElement('style');
-printStyle.innerHTML = `
+// ESTILOS DINÁMICOS PARA EL HOVER DE LAS BARRAS E IMPRESIÓN
+const dynamicStyle = document.createElement('style');
+dynamicStyle.innerHTML = `
+    .bar-hover-effect:hover {
+        border-color: #b35500 !important;
+        background-color: #272732 !important;
+        box-shadow: 0 0 8px rgba(179, 85, 0, 0.25);
+    }
+
     @media print {
         @page { size: A4 portrait; margin: 10mm; }
         body { background: #ffffff !important; color: #000000 !important; font-family: system-ui, -apple-system, sans-serif !important; margin: 0 !important; padding: 0 !important; }
-        header, .card:not(#results-card), #btn-optimize, #dw-floating-skin-bar, button, .main-header { display: none !important; }
-        .page-wrapper { padding: 0 !important; }
+        header, .card:not(#results-card), #btn-optimize, button { display: none !important; }
         #results-card { border: none !important; box-shadow: none !important; background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
         #results-card * { color: #000000 !important; }
         table { border-collapse: collapse !important; width: 100% !important; }
-        th, td { border: 1px solid #000000 !important; padding: 4px 8px !important; font-size: 11px !important; }
-        .print-parts-summary { background: #ffffff !important; border: 1px solid #000000 !important; margin-bottom: 15px !important; }
-        .print-bar-card { background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 2px !important; margin-bottom: 10mm !important; padding: 8px !important; page-break-inside: avoid; }
-        .print-bar-track { height: 26px !important; background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 0 !important; }
+        th, td { border: 1px solid #000000 !important; padding: 4px 8px !important; font-size: 10px !important; }
+        .print-parts-summary { background: #ffffff !important; border: 1px solid #000000 !important; margin-bottom: 12px !important; }
+        .print-bar-card { background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 2px !important; margin-bottom: 8mm !important; padding: 6px !important; page-break-inside: avoid; box-shadow: none !important; }
+        .print-bar-track { height: 22px !important; background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 0 !important; }
         .print-cut-block { background: #ffffff !important; color: #000000 !important; border-right: 1px solid #000000 !important; box-sizing: border-box !important; }
-        .print-cut-block strong, .print-cut-block span { color: #000000 !important; font-weight: 700 !important; font-size: 8.5px !important; }
-        .print-waste-block { background: #dcdcdc !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border-left: 1px solid #000000 !important; }
-        .badge-total-bars { border: 1px solid #000000 !important; color: #000000 !important; background: #ffffff !important; }
+        .print-cut-block strong, .print-cut-block span { color: #000000 !important; font-weight: 700 !important; font-size: 8px !important; }
+        .print-waste-block { background: #e0e0e0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border-left: 1px solid #000000 !important; }
     }
 `;
-document.head.appendChild(printStyle);
+document.head.appendChild(dynamicStyle);
 
-window.addEventListener('DOMContentLoaded', () => {
-    injectFloatingSkinPicker();
-    populateSavedProjectsDropdown();
-    initRealtimeSync(); // Activa la escucha en tiempo real
+window.addEventListener('DOMContentLoaded', async () => {
+    await populateSavedProjectsDropdown();
+    initRealtimeSync();
     updateButtonStates();
     const bladeInput = document.getElementById('blade-width');
     if(bladeInput && !bladeInput.value) bladeInput.value = 2;
+    
+    const selectElem = document.getElementById('saved-projects-select');
+    if(selectElem) lastSelectedValue = selectElem.value;
 });
