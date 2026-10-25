@@ -1,124 +1,320 @@
-/* =========================================================
-   TEMA UNIFICADO TMNT - DATAWAVES OPTIMIZER
-   ========================================================= */
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPTIMIZADOR DE CORTES LINEALES - DATAWAVES</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- SDK de Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .field-locked {
+            background-color: #1a1a22 !important;
+            color: #5c5c6e !important;
+            border-color: #2e2e3a !important;
+            cursor: not-allowed !important;
+        }
+        
+        .btn-app {
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
+            border: none !important;
+            border-radius: 4px !important;
+            padding: 6px 14px !important;
+            cursor: pointer;
+            outline: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
 
-:root {
-    --dw-accent: #b35500;
-    --dw-accent-light: #e06b00;
-    --dw-accent-hover: rgba(179, 85, 0, 0.15);
-    --dw-bg-main: #1a1a20;
-    --dw-header: #141419;
-    --dw-bg-card: #23232b;
-    --dw-bg-input: #30303b;
-    --dw-border: #3F3F4D;
-    --dw-text-main: #c2c2d0;
-}
+        /* QUITADOR DE FLECHAS EN CAMPOS NUMÉRICOS */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] { 
+            -moz-appearance: textfield; 
+        }
 
-html, body,
-html.dw-theme-tmnt, 
-body.dw-theme-tmnt {
-    background-color: var(--dw-bg-main) !important;
-    color: var(--dw-text-main) !important;
-    font-family: system-ui, -apple-system, sans-serif;
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+        /* ESTILOS PARA LOS BOTONES DE ICONOS GENERALES */
+        .icon-btn {
+            background: transparent !important;
+            border: none !important;
+            cursor: pointer;
+            padding: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: filter 0.2s, opacity 0.2s;
+        }
+        .icon-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: #b35500;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: stroke 0.2s;
+        }
+        .icon-btn:disabled {
+            opacity: 0.3 !important;
+            cursor: not-allowed !important;
+        }
+        .icon-btn:not(:disabled):hover svg {
+            stroke: #e06b00 !important;
+            filter: drop-shadow(0 0 2px rgba(224, 107, 0, 0.6));
+        }
 
-body * {
-    color: var(--dw-text-main);
-}
+        /* ESTADO ACTIVO PARA EL MODO DALTÓNICO */
+        .icon-btn.active-mode svg {
+            stroke: #e06b00 !important;
+            filter: drop-shadow(0 0 3px rgba(224, 107, 0, 0.8));
+        }
 
-/* CAMPOS DE FORMULARIO Y SELECTS */
-.form-control, select, input {
-    background-color: var(--dw-bg-input) !important;
-    color: var(--dw-text-main) !important;
-    border: 1px solid var(--dw-border) !important;
-    padding: 10px 12px;
-    border-radius: 4px;
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-}
+        /* ESTILO ESPECÍFICO PARA EL BOTÓN CUADRADO DE AGREGAR PIEZAS */
+        .btn-add-box {
+            background-color: #23232c !important;
+            border: 1px solid #b35500 !important;
+            border-radius: 4px !important;
+            width: 34px !important;
+            height: 34px !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+            padding: 0 !important;
+        }
+        .btn-add-box svg {
+            width: 18px;
+            height: 18px;
+            stroke: #b35500;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: stroke 0.2s;
+        }
+        .btn-add-box:hover {
+            background-color: #2a2a36 !important;
+            border-color: #e06b00 !important;
+        }
+        .btn-add-box:hover svg {
+            stroke: #e06b00 !important;
+        }
+    </style>
+</head>
+<body style="background-color: #121217; color: #c2c2d0; font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0;">
 
-input::placeholder {
-    color: #71717a !important;
-}
+    <!-- BARRA SUPERIOR HEADER -->
+    <header style="background-color: #141419; border-bottom: 1px solid #282833; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center;">
+        
+        <!-- IZQUIERDA: LOGO -->
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 16px; font-weight: bold; letter-spacing: 1px; color: #ffffff; margin-right: 8px;">DATAWAVES <span style="color: #b35500;">OPTIMIZER</span></span>
+        </div>
 
-/* TARJETAS Y CONTENEDORES */
-.card {
-    background-color: var(--dw-bg-card) !important;
-    border: 1px solid var(--dw-border) !important;
-}
+        <!-- DERECHA: SELECT + ICONOS -->
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <select id="saved-projects-select" class="form-control" style="width: 220px; height: 31px; font-size: 11px; padding: 4px 8px; background-color: #23232c; border: 1px solid #333342; color: #c2c2d0; border-radius: 4px;">
+                <option value="">-- SELECCIONAR --</option>
+            </select>
 
-header.main-header {
-    background-color: var(--dw-header) !important;
-    border-bottom: 1px solid var(--dw-border) !important;
-}
+            <div style="display: flex; align-items: center; gap: 10px; border-left: 1px solid #282833; padding-left: 14px;">
+                <!-- 1. ACTUALIZAR -->
+                <button id="btn-update-project" class="icon-btn" title="Actualizar" disabled>
+                    <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.73-5.73"/></svg>
+                </button>
+                
+                <!-- 2. GUARDAR (REGISTRAR) -->
+                <button id="btn-save-project" class="icon-btn" title="Registrar" disabled>
+                    <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </button>
+                
+                <!-- 3. ELIMINAR -->
+                <button id="btn-delete-project" class="icon-btn" title="Eliminar" disabled>
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                
+                <!-- 4. IMPORTAR -->
+                <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                <button id="btn-import-project" class="icon-btn" title="Importar">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+                </button>
+                
+                <!-- 5. EXPORTAR -->
+                <button id="btn-export-project" class="icon-btn" title="Exportar" disabled>
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                </button>
 
-/* TABLAS */
-table, .table {
-    width: 100%;
-    background-color: var(--dw-bg-card) !important;
-    border-color: var(--dw-border) !important;
-}
+                <!-- 6. MODO DALTÓNICO (OJO - ÚLTIMO A LA DERECHA) -->
+                <button id="btn-colorblind-mode" class="icon-btn" title="Modo Daltónico (Alto Contraste y Patrones)">
+                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
 
-.table th {
-    background-color: #3F3F4D !important;
-    color: #C2C2D0 !important;
-    border-bottom: 2px solid var(--dw-border) !important;
-}
+    <div style="padding: 18px 20px;">
+        
+        <!-- PRIMERA TARJETA -->
+        <div class="card" style="background-color: #1d1d24; border: 1px solid #2a2a36; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
+            <div style="display: grid; grid-template-columns: 2.2fr auto 1fr 0.5fr auto 0.6fr 1fr 3fr 1.5fr 1.5fr; gap: 12px; align-items: end;">
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">NOMBRE DEL PROYECTO</label>
+                    <input type="text" id="project-name" class="form-control" placeholder="NOMBRE DEL PROYECTO">
+                </div>
+                <div style="width: 1px; background-color: #2a2a36; height: 100%; min-height: 45px;"></div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">LARGO DEL PERFIL</label>
+                    <input type="number" id="bar-length" class="form-control" value="6000" min="100">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">HOJA</label>
+                    <input type="number" id="blade-width" class="form-control" value="2" min="0">
+                </div>
+                <div style="width: 1px; background-color: #2a2a36; height: 100%; min-height: 45px;"></div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">ID</label>
+                    <input type="text" id="doc-id" class="form-control" autocomplete="off">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">OF</label>
+                    <input type="text" id="doc-of" class="form-control field-locked" disabled readonly>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">DESCRIPCIÓN</label>
+                    <input type="text" id="doc-descripcion" class="form-control field-locked" disabled readonly>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">CLIENTE</label>
+                    <input type="text" id="doc-cliente" class="form-control field-locked" disabled readonly>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 5px; font-size: 9px; color: #828292; font-weight: 600; text-transform: uppercase;">OBRA</label>
+                    <input type="text" id="doc-obra" class="form-control field-locked" disabled readonly>
+                </div>
+            </div>
+        </div>
 
-.table td, .table th {
-    border: 1px solid var(--dw-border);
-    padding: 10px 12px;
-}
+        <!-- SEGUNDA TARJETA -->
+        <div class="card" style="background-color: #1d1d24; border: 1px solid #2a2a36; padding: 18px; border-radius: 6px; margin-bottom: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: start;">
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 8px; align-items: end;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 10px; color: #9e9ea6; font-weight: 600;">PIEZA</label>
+                            <input type="text" id="part-name" class="form-control" style="height: 34px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 10px; color: #9e9ea6; font-weight: 600;">LONGITUD (mm):</label>
+                            <input type="number" id="part-length" class="form-control" min="0" style="height: 34px;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-size: 10px; color: #9e9ea6; font-weight: 600;">CANTIDAD:</label>
+                            <input type="number" id="part-qty" class="form-control" min="0" style="height: 34px;">
+                        </div>
+                        <div style="display: flex; align-items: center; height: 34px;">
+                            <button id="btn-add-part" class="btn-add-box" title="Agregar pieza">
+                                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="btn-optimize" class="btn-app" style="background-color: #b35500; color: #ffffff; height: 36px; padding: 0 20px !important;">CALCULAR OPTIMIZACIÓN</button>
+                    </div>
+                </div>
 
-/* BOTONES PRINCIPALES (EXCEPTO ICONOS) */
-.btn-primary, button.btn-primary, #btn-optimize, #btn-print-report {
-    background-color: var(--dw-accent, #b35500) !important;
-    border: 1px solid var(--dw-accent, #b35500) !important;
-    color: #ffffff !important;
-    cursor: pointer;
-    transition: background 0.2s, opacity 0.2s, border-color 0.2s;
-    font-weight: 600;
-}
+                <div style="width: 1px; background-color: #2a2a36; height: 100%; min-height: 110px;"></div>
 
-.btn-primary:hover, #btn-optimize:hover, #btn-print-report:hover {
-    background-color: var(--dw-accent-light, #e06b00) !important;
-    border-color: var(--dw-accent-light, #e06b00) !important;
-}
+                <div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background-color: #2d2c38; color: #a5a5b5;">
+                                <th style="padding: 7px 10px; text-align: left; font-size: 10px; font-weight: 700;">PIEZA</th>
+                                <th style="padding: 7px 10px; text-align: left; font-size: 10px; font-weight: 700;">LONGITUD (mm)</th>
+                                <th style="padding: 7px 10px; text-align: left; font-size: 10px; font-weight: 700;">CANTIDAD</th>
+                                <th style="padding: 7px 10px; text-align: center; font-size: 10px; font-weight: 700;">ACCIONES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="parts-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
-/* BOTONES DE ACCIONES Y DE ICONOS (TRANSPARENTES SIN RECUADROS) */
-.icon-btn, .btn-action-edit, .btn-action-delete {
-    background: transparent !important;
-    border: none !important;
-    padding: 4px !important;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: none !important;
-}
+        <!-- TERCERA TARJETA: RESULTADOS -->
+        <div class="card" style="background-color: #1d1d24; border: 1px solid #2a2a36; padding: 18px; border-radius: 6px;" id="results-card">
+            <h4 style="margin: 0 0 12px 0; font-size: 12px; font-weight: 700; color: #c2c2d0; letter-spacing: 0.5px;">RESULTADOS</h4>
+            <div id="results-container" style="color: #616170; font-size: 11px; letter-spacing: 0.3px;">
+                AGREGUE PIEZAS Y PRESIONE "CALCULAR OPTIMIZACIÓN" PARA GENERAR EL PLANO DE BARRAS.
+            </div>
+        </div>
 
-/* =========================================================
-   SELECCIÓN DE ACENTOS (SKIN TMNT)
-   ========================================================= */
-[data-accent="maiki"] {
-    --dw-accent: #b35500; --dw-accent-light: #e06b00; --dw-accent-hover: rgba(179, 85, 0, 0.12);
-}
-[data-accent="leo"] {
-    --dw-accent: #278dbb; --dw-accent-light: #52a5cc; --dw-accent-hover: rgba(39, 141, 187, 0.12);
-}
-[data-accent="rafa"] {
-    --dw-accent: #bb3030; --dw-accent-light: #d64f4f; --dw-accent-hover: rgba(187, 48, 48, 0.12);
-}
-[data-accent="doni"] {
-    --dw-accent: #7a3bbb; --dw-accent-light: #965acc; --dw-accent-hover: rgba(122, 59, 187, 0.12);
-}
-[data-accent="verde"] {
-    --dw-accent: #78B242; --dw-accent-light: #92ca5b; --dw-accent-hover: rgba(120, 178, 66, 0.15);
-}
-[data-accent="chocolate"] {
-    --dw-accent: #75505D; --dw-accent-light: #916876; --dw-accent-hover: rgba(117, 80, 93, 0.18);
-}
+    </div>
+
+    <script src="optimizer.js"></script>
+
+    <script>
+        const inputId = document.getElementById('doc-id');
+        const inputOf = document.getElementById('doc-of');
+        const inputDesc = document.getElementById('doc-descripcion');
+        const inputCliente = document.getElementById('doc-cliente');
+        const inputObra = document.getElementById('doc-obra');
+
+        function limpiarCamposDependientes() {
+            if (inputOf) inputOf.value = '';
+            if (inputDesc) inputDesc.value = '';
+            if (inputCliente) inputCliente.value = '';
+            if (inputObra) inputObra.value = '';
+        }
+
+        inputId.addEventListener('input', function() {
+            if (this.value.trim() === '') {
+                limpiarCamposDependientes();
+            } else if (!this.value.startsWith('ID:') && !/^\d*$/.test(this.value)) {
+                this.value = this.value.replace(/[^\d]/g, '');
+            }
+        });
+
+        inputId.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const textoPegado = (e.clipboardData || window.clipboardData).getData('text').trim();
+
+            const matchId = textoPegado.match(/ID\s*:\s*([^|]+)/i);
+            const matchOf = textoPegado.match(/OF\s*:\s*([^|]+)/i);
+            const matchCliente = textoPegado.match(/CLIENTE\s*:\s*([^|]+)/i);
+            const matchObra = textoPegado.match(/OBRA\s*:\s*([^|]+)/i);
+            const matchDesc = textoPegado.match(/DESCRIPCI[OÓ]N\s*:\s*([^|]+)/i);
+
+            if (matchId || matchOf) {
+                if (matchId) {
+                    let idLimpio = matchId[1].split('|')[0].trim();
+                    inputId.value = idLimpio.replace(/[^\d]/g, '');
+                }
+                if (matchOf) inputOf.value = matchOf[1].split('|')[0].trim();
+                if (matchCliente) inputCliente.value = matchCliente[1].split('|')[0].trim();
+                if (matchDesc) inputDesc.value = matchDesc[1].split('|')[0].trim();
+
+                if (matchObra) {
+                    let obraBruta = matchObra[1].split('|')[0].trim();
+                    inputObra.value = obraBruta.replace(/^[\d\s-]+/, '').trim();
+                } else {
+                    inputObra.value = '';
+                }
+            } else if (/^\d+$/.test(textoPegado)) {
+                inputId.value = textoPegado;
+                limpiarCamposDependientes();
+            } else {
+                inputId.value = textoPegado;
+            }
+        });
+    </script>
+</body>
+</html>
