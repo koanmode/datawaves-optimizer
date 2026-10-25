@@ -3,9 +3,9 @@
    ========================================================= */
 
 :root {
-    --dw-accent: #78B242;
-    --dw-accent-light: #92ca5b;
-    --dw-accent-hover: rgba(120, 178, 66, 0.15);
+    --dw-accent: #b35500;
+    --dw-accent-light: #e06b00;
+    --dw-accent-hover: rgba(179, 85, 0, 0.15);
     --dw-bg-main: #1a1a20;
     --dw-header: #141419;
     --dw-bg-card: #23232b;
@@ -74,59 +74,38 @@ table, .table {
     padding: 10px 12px;
 }
 
-/* BOTONES PRINCIPALES (VERDE POR DEFECTO CON MÁXIMA PRIORIDAD) */
-.btn, .btn-primary, button.btn-primary, #btn-add-part, #btn-optimize {
-    background-color: var(--dw-accent, #78B242) !important;
-    border: 1px solid var(--dw-accent, #78B242) !important;
+/* BOTONES PRINCIPALES (EXCEPTO ICONOS) */
+.btn-primary, button.btn-primary, #btn-optimize, #btn-print-report {
+    background-color: var(--dw-accent, #b35500) !important;
+    border: 1px solid var(--dw-accent, #b35500) !important;
     color: #ffffff !important;
     cursor: pointer;
-    transition: background 0.2s, opacity 0.2s;
+    transition: background 0.2s, opacity 0.2s, border-color 0.2s;
     font-weight: 600;
 }
 
-.btn-primary:hover, #btn-add-part:hover, #btn-optimize:hover {
-    background-color: var(--dw-accent-light, #92ca5b) !important;
-    border-color: var(--dw-accent-light, #92ca5b) !important;
+.btn-primary:hover, #btn-optimize:hover, #btn-print-report:hover {
+    background-color: var(--dw-accent-light, #e06b00) !important;
+    border-color: var(--dw-accent-light, #e06b00) !important;
 }
 
-/* BOTONES DE TABLA (EDITAR / ELIMINAR) */
-.btn-action-edit {
-    background-color: var(--dw-accent, #78B242) !important;
+/* BOTONES DE ACCIONES Y DE ICONOS (TRANSPARENTES SIN RECUADROS) */
+.icon-btn, .btn-action-edit, .btn-action-delete {
+    background: transparent !important;
     border: none !important;
-    color: #ffffff !important;
-    padding: 6px 14px;
-    border-radius: 4px;
+    padding: 4px !important;
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    transition: background 0.2s;
-}
-
-.btn-action-edit:hover {
-    background-color: var(--dw-accent-light, #92ca5b) !important;
-}
-
-.btn-action-delete {
-    background-color: #bb3030 !important;
-    border: none !important;
-    color: #ffffff !important;
-    padding: 6px 14px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    transition: background 0.2s;
-}
-
-.btn-action-delete:hover {
-    background-color: #d64f4f !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none !important;
 }
 
 /* =========================================================
    SELECCIÓN DE ACENTOS (SKIN TMNT)
    ========================================================= */
 [data-accent="maiki"] {
-    --dw-accent: #b35500; --dw-accent-light: #cc7429; --dw-accent-hover: rgba(179, 85, 0, 0.12);
+    --dw-accent: #b35500; --dw-accent-light: #e06b00; --dw-accent-hover: rgba(179, 85, 0, 0.12);
 }
 [data-accent="leo"] {
     --dw-accent: #278dbb; --dw-accent-light: #52a5cc; --dw-accent-hover: rgba(39, 141, 187, 0.12);
