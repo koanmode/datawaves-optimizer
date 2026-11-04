@@ -840,3 +840,101 @@ window.addEventListener('DOMContentLoaded', async () => {
     const selectElem = document.getElementById('saved-projects-select');
     if(selectElem) lastSelectedValue = selectElem.value;
 });
+
+// =========================================================
+// MÓDULO DE ADMINISTRACIÓN Y BASE DE DATOS EXCEL
+// =========================================================
+
+let excelRowsData = [];
+
+document.getElementById('btn-admin').addEventListener('click', () => {
+    const password = prompt('INGRESE LA CONTRASEÑA DE ADMINISTRADOR:');
+    
+    if (password === null) return; // Si cancela
+    
+    if (password.trim() === 'datawaves') {
+        alert('¡ACCESO CONCEDIDO!');
+        document.getElementById('admin-controls-container').style.display = 'flex';
+        document.getElementById('btn-admin').style.borderColor = '#28a745';
+        document.getElementById('btn-admin').style.color = '#28a745';
+        document.getElementById('btn-admin').textContent = 'ADMIN (ACTIVO)';
+    } else {
+        alert('CONTRASEÑA INCORRECTA.');
+    }
+});
+
+// Abrir modal de Excel
+document.getElementById('btn-open-excel-db').addEventListener('click', () => {
+    document.getElementById('excel-modal').style.display = 'flex';
+    cargarDatosExcelEnTabla();
+});
+
+// Cerrar modal de Excel
+document.getElementById('btn-close-excel-modal').addEventListener('click', () => {
+    document.getElementById('excel-modal').style.display = 'none';
+});
+
+// Cargar o inicializar filas de ejemplo/guardadas
+function cargarDatosExcelEnTabla() {
+    // Si no hay datos previos, cargamos una fila vacía para empezar a tipear a mano
+    if (excelRowsData.length === 0) {
+        excelRowsData.push({ codigo: '', descripcion: '', categoria: '', largo: '' });
+    }
+    renderExcelTable();
+}
+
+function renderExcelTable() {
+    const tbody = document.getElementById('excel-table-body');
+    tbody.innerHTML = '';
+
+    excelRowsData.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #2a2a36';
+        
+        tr.innerHTML = `
+            <td style="padding: 4px; border: 1px solid #383846;"><input type="text" class="excel-input" data-index="${index}" data-field="codigo" value="${row.codigo || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
+            <td style="padding: 4px; border: 1px solid #383846;"><input type="text" class="excel-input" data-index="${index}" data-field="descripcion" value="${row.descripcion || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
+            <td style="padding: 4px; border: 1px solid #383846;"><input type="text" class="excel-input" data-index="${index}" data-field="categoria" value="${row.categoria || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
+            <td style="padding: 4px; border: 1px solid #383846;"><input type="number" class="excel-input" data-index="${index}" data-field="largo" value="${row.largo || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
+            <td style="padding: 4px; border: 1px solid #383846; text-align: center;">
+                <button class="icon-btn btn-delete-excel-row" data-index="${index}" title="Eliminar fila">
+                    <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: #bb3030;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Guardar cambios automáticamente al escribir en las celdas estilo hoja de cálculo
+    document.querySelectorAll('.excel-input').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const idx = parseInt(e.target.getAttribute('data-index'));
+            const field = e.target.getAttribute('data-field');
+            excelRowsData[idx][field] = e.target.value;
+        });
+    });
+
+    // Botones para eliminar fila específica
+    document.querySelectorAll('.btn-delete-excel-row').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const target = e.target.closest('.btn-delete-excel-row');
+            if (target) {
+                const idx = parseInt(target.getAttribute('data-index'));
+                excelRowsData.splice(idx, 1);
+                renderExcelTable();
+            }
+        });
+    });
+}
+
+// Botón dentro del modal para agregar una nueva línea en blanco
+document.getElementById('btn-excel-add-row').addEventListener('click', () => {
+    excelRowsData.push({ codigo: '', descripcion: '', categoria: '', largo: '' });
+    renderExcelTable();
+});
+
+// Botón de guardar cambios en la base de datos simulada/local
+document.getElementById('btn-excel-save').addEventListener('click', () => {
+    alert('¡DATOS DE LA TABLA EXCEL GUARDADOS CORRECTAMENTE EN MEMORIA!');
+    document.getElementById('excel-modal').style.display = 'none';
+});
