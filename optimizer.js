@@ -8,10 +8,12 @@ const SUPABASE_ANON_KEY = 'sb_publishable_2fuRdNLrO24nN5HA6e8lmw_v6IYVleX';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let partsList = [];
+let inputRows = [{ name: '', length: '', qty: '' }]; 
 let editingIndex = null;
+let editingTempRow = null; 
 let partColorsMap = {};
 let currentLoadedId = null; 
-let isColorBlindMode = false; // Estado del modo daltónico
+let isColorBlindMode = false;
 
 function getOrderData() {
     return {
@@ -19,15 +21,22 @@ function getOrderData() {
         of: (document.getElementById('doc-of')?.value || '').trim(),
         descripcion: (document.getElementById('doc-descripcion')?.value || '').trim(),
         cliente: (document.getElementById('doc-cliente')?.value || '').trim(),
-        obra: (document.getElementById('doc-obra')?.value || '').trim()
+        obra: (document.getElementById('doc-obra')?.value || '').trim(),
+        excelCodigo: (document.getElementById('excel-codigo')?.value || '').trim(),
+        excelDescripcion: (document.getElementById('excel-descripcion')?.value || '').trim(),
+        excelCategoria: (document.getElementById('excel-categoria')?.value || '').trim()
     };
 }
 
 function clearOrderDataFields() {
-    ['doc-id', 'doc-of', 'doc-descripcion', 'doc-cliente', 'doc-obra'].forEach(id => {
+    ['doc-id', 'doc-of', 'doc-descripcion', 'doc-cliente', 'doc-obra', 'excel-codigo', 'excel-descripcion', 'excel-categoria'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    const barLengthInput = document.getElementById('bar-length');
+    if (barLengthInput) barLengthInput.value = '6000';
+    const bladeInput = document.getElementById('blade-width');
+    if (bladeInput) bladeInput.value = '0';
 }
 
 function setOrderDataFields(orderData) {
@@ -40,16 +49,22 @@ function setOrderDataFields(orderData) {
     const docDesc = document.getElementById('doc-descripcion');
     const docCliente = document.getElementById('doc-cliente');
     const docObra = document.getElementById('doc-obra');
+    const excelCodigo = document.getElementById('excel-codigo');
+    const excelDesc = document.getElementById('excel-descripcion');
+    const excelCat = document.getElementById('excel-categoria');
 
     if (docId) docId.value = orderData.id || '';
     if (docOf) docOf.value = orderData.of || '';
     if (docDesc) docDesc.value = orderData.descripcion || '';
     if (docCliente) docCliente.value = orderData.cliente || '';
     if (docObra) docObra.value = orderData.obra || '';
+    if (excelCodigo) excelCodigo.value = orderData.excelCodigo || '';
+    if (excelDesc) excelDesc.value = orderData.excelDescripcion || '';
+    if (excelCat) excelCat.value = orderData.excelCategoria || '';
 }
 
 function formatDocNameWithOF(baseName, ofVal) {
-    let cleanName = baseName.trim();
+    let cleanName = (baseName || '').trim();
     cleanName = cleanName.replace(/^OF\s+\d+\s*-\s*/i, '');
     if (ofVal && ofVal.trim() !== '') {
         return `OF ${ofVal.trim()} - ${cleanName}`;
@@ -58,39 +73,82 @@ function formatDocNameWithOF(baseName, ofVal) {
 }
 
 function updateButtonStates() {
-    const projectName = document.getElementById('project-name').value.trim();
+    const projectName = (document.getElementById('project-name')?.value || '').trim();
     const saveBtn = document.getElementById('btn-save-project');
     const updateBtn = document.getElementById('btn-update-project');
     const deleteBtn = document.getElementById('btn-delete-project');
     const exportBtn = document.getElementById('btn-export-project');
     const select = document.getElementById('saved-projects-select');
 
-    if (projectName.length > 0 && partsList.length > 0) {
-        saveBtn.disabled = false;
-    } else {
-        saveBtn.disabled = true;
+    if (saveBtn) saveBtn.disabled = !(projectName.length > 0 && partsList.length > 0);
+    if (updateBtn) updateBtn.disabled = !(currentLoadedId && projectName.length > 0 && partsList.length > 0);
+
+    const hasSelection = select && select.value !== "";
+    if (deleteBtn) deleteBtn.disabled = !hasSelection;
+    if (exportBtn) exportBtn.disabled = !hasSelection;
+}
+
+function sortPartsList() {
+    partsList.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+// =========================================================
+// AUTOCOMPLETADO DE PERFIL DESDE LA BASE DE DATOS EXCEL
+// =========================================================
+
+document.getElementById('excel-codigo')?.addEventListener('input', async function() {
+    const codigoIngresado = this.value.trim();
+    
+    if (codigoIngresado === '') {
+        document.getElementById('excel-descripcion').value = '';
+        document.getElementById('excel-categoria').value = '';
+        document.getElementById('bar-length').value = '6000';
+        return;
     }
 
-    if (currentLoadedId && projectName.length > 0 && partsList.length > 0) {
-        updateBtn.disabled = false;
-    } else {
-        updateBtn.disabled = true;
+    const { data, error } = await supabaseClient
+        .from('excel_database')
+        .select('*')
+        .ilike('codigo', codigoIngresado)
+        .maybeSingle();
+
+    if (error || !data) {
+        document.getElementById('excel-descripcion').value = '';
+        document.getElementById('excel-categoria').value = '';
+        return;
     }
 
-    if (select && select.value !== "") {
-        deleteBtn.disabled = false;
+    document.getElementById('excel-descripcion').value = data.descripcion || '';
+    document.getElementById('excel-categoria').value = data.categoria || '';
+    if (data.largo) {
+        document.getElementById('bar-length').value = data.largo;
+    }
+});
 
-        if (exportBtn) {
-            exportBtn.disabled = false;
-        }
+// =========================================================
+// CONTROLES DE DESBLOQUEO (LARGO Y HOJA)
+// =========================================================
+
+function toggleLockField(inputId, btnId) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    if (!input || !btn) return;
+
+    if (input.hasAttribute('disabled')) {
+        input.removeAttribute('disabled');
+        input.removeAttribute('readonly');
+        input.classList.remove('field-locked');
+        btn.classList.add('unlocked');
     } else {
-        deleteBtn.disabled = true;
-
-        if (exportBtn) {
-            exportBtn.disabled = true;
-        }
+        input.setAttribute('disabled', 'true');
+        input.setAttribute('readonly', 'true');
+        input.classList.add('field-locked');
+        btn.classList.remove('unlocked');
     }
 }
+
+document.getElementById('btn-unlock-bar')?.addEventListener('click', () => toggleLockField('bar-length', 'btn-unlock-bar'));
+document.getElementById('btn-unlock-blade')?.addEventListener('click', () => toggleLockField('blade-width', 'btn-unlock-blade'));
 
 // =========================================================
 // SUPABASE REALTIME Y PROYECTOS
@@ -114,7 +172,7 @@ async function populateSavedProjectsDropdown(keepSelected = true) {
 
     select.innerHTML = '<option value="">-- SELECCIONAR --</option>';
 
-    data.forEach(row => {
+    (data || []).forEach(row => {
         const option = document.createElement('option');
         option.value = row.doc_name;
         option.textContent = row.doc_name.toUpperCase();
@@ -139,12 +197,11 @@ function initRealtimeSync() {
         .subscribe();
 }
 
-document.getElementById('project-name').addEventListener('input', () => {
+document.getElementById('project-name')?.addEventListener('input', () => {
     updateButtonStates();
 });
 
-// EVENTO PARA EL BOTÓN DE MODO DALTÓNICO (OJO)
-document.getElementById('btn-colorblind-mode').addEventListener('click', () => {
+document.getElementById('btn-colorblind-mode')?.addEventListener('click', () => {
     isColorBlindMode = !isColorBlindMode;
     const btn = document.getElementById('btn-colorblind-mode');
     
@@ -157,18 +214,16 @@ document.getElementById('btn-colorblind-mode').addEventListener('click', () => {
         btn.style.backgroundColor = 'transparent';
     }
 
-    // Recalcular/renderizar resultados si ya hay piezas optimizadas
     if (partsList.length > 0) {
         document.getElementById('btn-optimize').click();
     }
 });
 
-// CONTROL INTELIGENTE DEL SELECTOR (CARGAR / NUEVO AUTOMÁTICO)
 let lastSelectedValue = "";
 
-document.getElementById('saved-projects-select').addEventListener('change', async function() {
+document.getElementById('saved-projects-select')?.addEventListener('change', async function() {
     const selectedDoc = this.value;
-    const hasProgress = document.getElementById('project-name').value.trim().length > 0 || partsList.length > 0;
+    const hasProgress = (document.getElementById('project-name').value.trim().length > 0) || partsList.length > 0;
 
     if (selectedDoc === "") {
         if (hasProgress) {
@@ -184,7 +239,7 @@ document.getElementById('saved-projects-select').addEventListener('change', asyn
     }
 
     if (hasProgress) {
-        const confirmarCarga = window.confirm('¿ESTAS SEGURO DE CARGAR UN REGISTRO EXISTENTE? PERDERAS EL PROGRESO ACTUAL.');
+        const confirmarCarga = window.confirm('¿ESTÁS SEGURO DE CARGAR UN REGISTRO EXISTENTE? PERDERÁS EL PROGRESO ACTUAL.');
         if (!confirmarCarga) {
             this.value = lastSelectedValue;
             return;
@@ -209,16 +264,21 @@ async function loadProjectData(selectedDoc) {
 
     currentLoadedId = data.doc_name;
     document.getElementById('project-name').value = data.doc_name;
-    document.getElementById('bar-length').value = data.bar_length;
-    document.getElementById('blade-width').value = data.blade_width;
+    document.getElementById('bar-length').value = data.bar_length || 6000;
+    document.getElementById('blade-width').value = data.blade_width !== undefined ? data.blade_width : 0;
+    
     partsList = JSON.parse(JSON.stringify(data.parts_list || []));
+    sortPartsList();
+
     editingIndex = null;
+    editingTempRow = null;
+    inputRows = [{ name: '', length: '', qty: '' }];
 
     setOrderDataFields(data.order_data);
 
+    renderInputRows();
     renderPartsTable();
     updateButtonStates();
-    
     document.getElementById('btn-optimize').click();
 }
 
@@ -226,30 +286,31 @@ function executeNewProjectReset() {
     currentLoadedId = null;
     document.getElementById('project-name').value = '';
     document.getElementById('bar-length').value = '6000';
-    document.getElementById('blade-width').value = '2';
+    document.getElementById('blade-width').value = '0';
     document.getElementById('saved-projects-select').value = '';
-    document.getElementById('part-name').value = '';
-    document.getElementById('part-length').value = '';
-    document.getElementById('part-qty').value = '';
+    
+    inputRows = [{ name: '', length: '', qty: '' }];
+    editingIndex = null;
+    editingTempRow = null;
+    renderInputRows();
     
     clearOrderDataFields();
 
     partsList = [];
-    editingIndex = null;
     renderPartsTable();
     updateButtonStates();
 
     document.getElementById('results-container').innerHTML = 'AGREGUE PIEZAS Y PRESIONE "CALCULAR OPTIMIZACIÓN" PARA GENERAR EL PLANO DE BARRAS.';
 }
 
-document.getElementById('btn-save-project').addEventListener('click', async () => {
+document.getElementById('btn-save-project')?.addEventListener('click', async () => {
     let rawDocName = document.getElementById('project-name').value.trim();
     const ofVal = document.getElementById('doc-of').value.trim();
     
     let docName = formatDocNameWithOF(rawDocName, ofVal).toUpperCase();
     document.getElementById('project-name').value = docName;
 
-    const barLength = parseFloat(document.getElementById('bar-length').value);
+    const barLength = parseFloat(document.getElementById('bar-length').value) || 6000;
     const bladeWidth = parseFloat(document.getElementById('blade-width').value) || 0;
 
     if (!docName || partsList.length === 0) {
@@ -261,7 +322,7 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
         .from('projects')
         .select('doc_name')
         .eq('doc_name', docName)
-        .single();
+        .maybeSingle();
 
     if (existing) {
         alert('YA EXISTE UN REGISTRO CON ESTE NOMBRE EN LA NUBE.');
@@ -285,7 +346,6 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     }
 
     currentLoadedId = docName;
-    
     await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = docName;
     lastSelectedValue = docName;
@@ -293,14 +353,14 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     alert(`EL REGISTRO "${docName}" HA SIDO GUARDADO EN LA NUBE EXITOSAMENTE.`);
 });
 
-document.getElementById('btn-update-project').addEventListener('click', async () => {
+document.getElementById('btn-update-project')?.addEventListener('click', async () => {
     let rawDocName = document.getElementById('project-name').value.trim();
     const ofVal = document.getElementById('doc-of').value.trim();
     
     let docName = formatDocNameWithOF(rawDocName, ofVal).toUpperCase();
     document.getElementById('project-name').value = docName;
 
-    const barLength = parseFloat(document.getElementById('bar-length').value);
+    const barLength = parseFloat(document.getElementById('bar-length').value) || 6000;
     const bladeWidth = parseFloat(document.getElementById('blade-width').value) || 0;
 
     if (!docName || partsList.length === 0 || !currentLoadedId) {
@@ -324,9 +384,7 @@ document.getElementById('btn-update-project').addEventListener('click', async ()
         updated_at: new Date().toISOString()
     };
 
-    const { error } = await supabaseClient
-        .from('projects')
-        .upsert([projectData]);
+    const { error } = await supabaseClient.from('projects').upsert([projectData]);
 
     if (error) {
         alert('ERROR AL ACTUALIZAR: ' + error.message);
@@ -334,7 +392,6 @@ document.getElementById('btn-update-project').addEventListener('click', async ()
     }
 
     currentLoadedId = docName;
-
     await populateSavedProjectsDropdown(false);
     document.getElementById('saved-projects-select').value = docName;
     lastSelectedValue = docName;
@@ -342,7 +399,7 @@ document.getElementById('btn-update-project').addEventListener('click', async ()
     alert(`EL REGISTRO "${docName}" FUE ACTUALIZADO CON ÉXITO.`);
 });
 
-document.getElementById('btn-delete-project').addEventListener('click', async () => {
+document.getElementById('btn-delete-project')?.addEventListener('click', async () => {
     const selectedDoc = document.getElementById('saved-projects-select').value;
     if (!selectedDoc) {
         alert('SELECCIONE UN DOCUMENTO DE LA LISTA PARA ELIMINAR.');
@@ -352,10 +409,7 @@ document.getElementById('btn-delete-project').addEventListener('click', async ()
     const confirmDelete = window.confirm(`¿ESTÁS SEGURO DE ELIMINAR EL REGISTRO "${selectedDoc}" DE LA NUBE PARA TODOS?`);
     if (!confirmDelete) return;
 
-    const { error } = await supabaseClient
-        .from('projects')
-        .delete()
-        .eq('doc_name', selectedDoc);
+    const { error } = await supabaseClient.from('projects').delete().eq('doc_name', selectedDoc);
 
     if (error) {
         alert('ERROR AL ELIMINAR: ' + error.message);
@@ -363,14 +417,14 @@ document.getElementById('btn-delete-project').addEventListener('click', async ()
     }
 
     if (currentLoadedId === selectedDoc) {
-        currentLoadedId = null;
-        clearOrderDataFields();
+        executeNewProjectReset();
+    } else {
+        await populateSavedProjectsDropdown(false);
+        document.getElementById('saved-projects-select').value = "";
+        lastSelectedValue = "";
+        updateButtonStates();
     }
     
-    await populateSavedProjectsDropdown(false);
-    document.getElementById('saved-projects-select').value = "";
-    lastSelectedValue = "";
-    updateButtonStates();
     alert(`EL REGISTRO "${selectedDoc}" FUE ELIMINADO CON ÉXITO.`);
 });
 
@@ -378,18 +432,14 @@ document.getElementById('btn-delete-project').addEventListener('click', async ()
 // IMPORTACIÓN Y EXPORTACIÓN JSON
 // =========================================================
 
-document.getElementById('btn-export-project').addEventListener('click', async () => {
+document.getElementById('btn-export-project')?.addEventListener('click', async () => {
     const selectedDoc = document.getElementById('saved-projects-select').value;
     if (!selectedDoc) {
         alert('SELECCIONE UN REGISTRO PARA EXPORTAR.');
         return;
     }
 
-    const { data, error } = await supabaseClient
-        .from('projects')
-        .select('*')
-        .eq('doc_name', selectedDoc)
-        .single();
+    const { data, error } = await supabaseClient.from('projects').select('*').eq('doc_name', selectedDoc).single();
 
     if (error || !data) {
         alert('NO SE PUDO OBTENER EL REGISTRO.');
@@ -417,11 +467,11 @@ document.getElementById('btn-export-project').addEventListener('click', async ()
     URL.revokeObjectURL(url);
 });
 
-document.getElementById('btn-import-project').addEventListener('click', () => {
-    document.getElementById('import-file-input').click();
+document.getElementById('btn-import-project')?.addEventListener('click', () => {
+    document.getElementById('import-file-input')?.click();
 });
 
-document.getElementById('import-file-input').addEventListener('change', function(e) {
+document.getElementById('import-file-input')?.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -429,26 +479,22 @@ document.getElementById('import-file-input').addEventListener('change', function
     reader.onload = async function(evt) {
         try {
             const project = JSON.parse(evt.target.result);
-
-            if (!project.docName || !project.partsList) {
-                alert('EL ARCHIVO SELECCIONADO NO TIENE UN FORMATO VÁLIDO DE OPTIMIZADOR.');
+            if (!project.docName || !Array.isArray(project.partsList)) {
+                alert('EL ARCHIVO SELECCIONADO NO TIENE UN FORMATO VÁLIDO.');
                 return;
             }
 
             const docName = project.docName.toUpperCase();
-
             const projectData = {
                 doc_name: docName,
-                bar_length: project.barLength,
-                blade_width: project.bladeWidth || 2,
+                bar_length: project.barLength || 6000,
+                blade_width: project.bladeWidth || 0,
                 parts_list: project.partsList,
                 order_data: project.orderData || {},
                 updated_at: new Date().toISOString()
             };
 
-            const { error } = await supabaseClient
-                .from('projects')
-                .upsert([projectData]);
+            const { error } = await supabaseClient.from('projects').upsert([projectData]);
 
             if (error) {
                 alert('ERROR AL SUBIR A LA NUBE: ' + error.message);
@@ -460,13 +506,14 @@ document.getElementById('import-file-input').addEventListener('change', function
             lastSelectedValue = docName;
             updateButtonStates();
 
-            const autoLoad = window.confirm(`REGISTRO "${docName}" IMPORTADO A LA NUBE CON ÉXITO.\n¿DESEAS CARGARLO EN PANTALLA AHORA?`);
+            const autoLoad = window.confirm(`REGISTRO "${docName}" IMPORTADO CON ÉXITO.\n¿DESEAS CARGARLO EN PANTALLA AHORA?`);
             if (autoLoad) {
                 currentLoadedId = project.docName;
                 document.getElementById('project-name').value = project.docName;
-                document.getElementById('bar-length').value = project.barLength;
-                document.getElementById('blade-width').value = project.bladeWidth || 2;
+                document.getElementById('bar-length').value = project.barLength || 6000;
+                document.getElementById('blade-width').value = project.bladeWidth || 0;
                 partsList = JSON.parse(JSON.stringify(project.partsList || []));
+                sortPartsList();
                 setOrderDataFields(project.orderData);
                 renderPartsTable();
                 updateButtonStates();
@@ -475,54 +522,186 @@ document.getElementById('import-file-input').addEventListener('change', function
         } catch (err) {
             alert('ERROR AL LEER EL ARCHIVO JSON: ' + err.message);
         }
-        
         e.target.value = '';
     };
-
     reader.readAsText(file);
 });
 
 // =========================================================
-// GESTIÓN DE PIEZAS
+// GESTIÓN DE FILAS MÚLTIPLES Y CARGA A LA DERECHA
 // =========================================================
 
-document.getElementById('btn-add-part').addEventListener('click', () => {
-    const name = document.getElementById('part-name').value.trim();
-    const length = parseFloat(document.getElementById('part-length').value);
-    const qty = parseInt(document.getElementById('part-qty').value);
-    const barLength = parseFloat(document.getElementById('bar-length').value);
+function renderInputRows() {
+    const container = document.getElementById('input-rows-container');
+    if (!container) return;
+    container.innerHTML = '';
 
-    if (!name || isNaN(length) || length <= 0 || isNaN(qty) || qty <= 0) {
-        alert('POR FAVOR COMPLETE CORRECTAMENTE LOS CAMPOS DE LA PIEZA.');
-        return;
+    if (editingIndex !== null && editingTempRow) {
+        const tempRowDiv = document.createElement('div');
+        tempRowDiv.style.cssText = 'display: grid; grid-template-columns: 1.5fr 1.2fr 1fr auto; gap: 8px; align-items: end; background: rgba(179, 85, 0, 0.08); padding: 8px; border-radius: 4px; border: 1px dashed #b35500;';
+        tempRowDiv.innerHTML = `
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-size: 10px; color: #b35500; font-weight: 700;">EDITANDO PIEZA</label>
+                <input type="text" class="form-control temp-name" value="${editingTempRow.name || ''}" style="height: 34px;" autocomplete="off">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-size: 10px; color: #b35500; font-weight: 700;">LONGITUD (mm):</label>
+                <input type="number" class="form-control temp-length" value="${editingTempRow.length !== '' ? editingTempRow.length : ''}" min="0" style="height: 34px;">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 5px; font-size: 10px; color: #b35500; font-weight: 700;">CANTIDAD:</label>
+                <input type="number" class="form-control temp-qty" value="${editingTempRow.qty !== '' ? editingTempRow.qty : ''}" min="0" style="height: 34px;">
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center; height: 34px;">
+                <button type="button" class="btn-add-box btn-temp-save active-mode" title="Guardar cambios de edición">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+                <button type="button" class="btn-add-box btn-temp-cancel" title="Cancelar edición" style="border-color: #bb3030 !important;">
+                    <svg viewBox="0 0 24 24" style="stroke: #bb3030;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        `;
+        container.appendChild(tempRowDiv);
+
+        tempRowDiv.querySelector('.temp-name').addEventListener('input', (e) => { editingTempRow.name = e.target.value; });
+        tempRowDiv.querySelector('.temp-length').addEventListener('input', (e) => { editingTempRow.length = e.target.value === '' ? '' : parseFloat(e.target.value); });
+        tempRowDiv.querySelector('.temp-qty').addEventListener('input', (e) => { editingTempRow.qty = e.target.value === '' ? '' : parseInt(e.target.value, 10); });
+
+        tempRowDiv.querySelector('.btn-temp-save').addEventListener('click', () => {
+            const barLength = parseFloat(document.getElementById('bar-length').value) || 6000;
+            const name = (editingTempRow.name || '').trim();
+            const length = parseFloat(editingTempRow.length);
+            const qty = parseInt(editingTempRow.qty, 10);
+
+            if (!name || isNaN(length) || length <= 0 || isNaN(qty) || qty <= 0) {
+                alert('POR FAVOR COMPLETE CORRECTAMENTE LOS CAMPOS DE LA EDICIÓN.');
+                return;
+            }
+            if (length > barLength) {
+                alert('LA LONGITUD DE LA PIEZA NO PUEDE SER MAYOR QUE LA BARRA BASE.');
+                return;
+            }
+
+            partsList[editingIndex] = { name, length, qty };
+            sortPartsList();
+            editingIndex = null;
+            editingTempRow = null;
+            renderInputRows();
+            renderPartsTable();
+            updateButtonStates();
+        });
+
+        tempRowDiv.querySelector('.btn-temp-cancel').addEventListener('click', () => {
+            editingIndex = null;
+            editingTempRow = null;
+            renderInputRows();
+            renderPartsTable();
+        });
     }
 
-    if (length > barLength) {
-        alert('LA LONGITUD DE LA PIEZA NO PUEDE SER MAYOR QUE LA BARRA BASE.');
-        return;
+    if (inputRows.length === 0) {
+        inputRows.push({ name: '', length: '', qty: '' });
     }
 
-    const addBtn = document.getElementById('btn-add-part');
+    inputRows.forEach((row, index) => {
+        const rowDiv = document.createElement('div');
+        rowDiv.style.cssText = 'display: grid; grid-template-columns: 1.5fr 1.2fr 1fr auto; gap: 8px; align-items: end;';
 
-    if (editingIndex !== null) {
-        partsList[editingIndex] = { name, length, qty };
-        editingIndex = null;
-        addBtn.title = 'Agregar pieza';
-    } else {
-        partsList.push({ name, length, qty });
-    }
+        rowDiv.innerHTML = `
+            <div>
+                ${(index === 0 && editingIndex === null) ? '<label style="display: block; margin-bottom: 5px; font-size: 10px; color: #9e9ea6; font-weight: 600;">PIEZA</label>' : ''}
+                <input type="text" class="form-control r-name" data-index="${index}" value="${row.name || ''}" style="height: 34px;" autocomplete="off">
+            </div>
+            <div>
+                ${(index === 0 && editingIndex === null) ? '<label style="display: block; margin-bottom: 5px; font-size: 10px; color: #9e9ea6; font-weight: 600;">LONGITUD (mm):</label>' : ''}
+                <input type="number" class="form-control r-length" data-index="${index}" value="${row.length !== '' ? row.length : ''}" min="0" style="height: 34px;">
+            </div>
+            <div>
+                ${(index === 0 && editingIndex === null) ? '<label style="display: block; margin-bottom: 5px; font-size: 10px; color: #9e9ea6; font-weight: 600;">CANTIDAD:</label>' : ''}
+                <input type="number" class="form-control r-qty" data-index="${index}" value="${row.qty !== '' ? row.qty : ''}" min="0" style="height: 34px;">
+            </div>
+            <div style="display: flex; gap: 4px; align-items: center; height: 34px;">
+                <button type="button" class="btn-add-box btn-row-action" data-index="${index}" title="Agregar a la tabla">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+                <button type="button" class="btn-add-box btn-row-delete" data-index="${index}" title="Eliminar fila" style="border-color: #bb3030 !important;">
+                    <svg viewBox="0 0 24 24" style="stroke: #bb3030;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        `;
+        container.appendChild(rowDiv);
+    });
 
-    renderPartsTable();
-    updateButtonStates();
+    document.querySelectorAll('.r-name').forEach(el => {
+        el.addEventListener('input', (e) => {
+            inputRows[e.target.dataset.index].name = e.target.value;
+        });
+    });
+    document.querySelectorAll('.r-length').forEach(el => {
+        el.addEventListener('input', (e) => {
+            inputRows[e.target.dataset.index].length = e.target.value === '' ? '' : parseFloat(e.target.value);
+        });
+    });
+    document.querySelectorAll('.r-qty').forEach(el => {
+        el.addEventListener('input', (e) => {
+            inputRows[e.target.dataset.index].qty = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+        });
+    });
 
-    document.getElementById('part-name').value = '';
-    document.getElementById('part-length').value = '';
-    document.getElementById('part-qty').value = '';
-    document.getElementById('part-name').focus();
+    document.querySelectorAll('.btn-row-action').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.closest('.btn-row-action').dataset.index, 10);
+            const row = inputRows[idx];
+            const barLength = parseFloat(document.getElementById('bar-length').value) || 6000;
+
+            const name = (row.name || '').trim();
+            const length = parseFloat(row.length);
+            const qty = parseInt(row.qty, 10);
+
+            if (!name || isNaN(length) || length <= 0 || isNaN(qty) || qty <= 0) {
+                alert('POR FAVOR COMPLETE CORRECTAMENTE LOS CAMPOS DE ESTA FILA ANTES DE AGREGARLA.');
+                return;
+            }
+
+            if (length > barLength) {
+                alert('LA LONGITUD DE LA PIEZA NO PUEDE SER MAYOR QUE LA BARRA BASE.');
+                return;
+            }
+
+            partsList.push({ name, length, qty });
+            sortPartsList();
+
+            inputRows.splice(idx, 1);
+            if (inputRows.length === 0) {
+                inputRows.push({ name: '', length: '', qty: '' });
+            }
+
+            renderInputRows();
+            renderPartsTable();
+            updateButtonStates();
+        });
+    });
+
+    document.querySelectorAll('.btn-row-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.closest('.btn-row-delete').dataset.index, 10);
+            inputRows.splice(idx, 1);
+            if (inputRows.length === 0) {
+                inputRows.push({ name: '', length: '', qty: '' });
+            }
+            renderInputRows();
+        });
+    });
+}
+
+document.getElementById('btn-add-row')?.addEventListener('click', () => {
+    inputRows.push({ name: '', length: '', qty: '' });
+    renderInputRows();
 });
 
 function renderPartsTable() {
     const tbody = document.getElementById('parts-table-body');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     if (partsList.length === 0) {
@@ -535,7 +714,7 @@ function renderPartsTable() {
         tr.style.borderBottom = '1px solid #2a2a36';
 
         let isEditing = (index === editingIndex);
-        let rowStyle = isEditing ? 'color: #e06b00 !important; font-weight: bold;' : 'color: #c2c2d0;';
+        let rowStyle = isEditing ? 'color: #b35500 !important; font-weight: bold;' : 'color: #c2c2d0;';
 
         tr.innerHTML = `
             <td style="padding: 6px 10px; font-size: 11px;"><span style="${rowStyle}">${part.name.toUpperCase()}</span></td>
@@ -543,7 +722,7 @@ function renderPartsTable() {
             <td style="padding: 6px 10px; font-size: 11px;"><span style="${rowStyle}">${part.qty}</span></td>
             <td style="padding: 6px 10px; text-align: center;">
                 <div style="display: inline-flex; gap: 10px; justify-content: center; align-items: center;">
-                    <button class="icon-btn btn-action-edit" data-index="${index}" title="${isEditing ? 'Cancelar' : 'Editar'}">
+                    <button class="icon-btn btn-action-edit" data-index="${index}" title="${isEditing ? 'Cancelar edición' : 'Editar'}">
                         <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     </button>
                     <button class="icon-btn btn-action-delete" data-index="${index}" title="Eliminar">
@@ -558,53 +737,37 @@ function renderPartsTable() {
     document.querySelectorAll('.btn-action-edit').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const target = e.target.closest('.btn-action-edit');
-            if (target) {
-                const index = parseInt(target.getAttribute('data-index'));
-                editPart(index);
-            }
+            if (target) editPart(parseInt(target.getAttribute('data-index'), 10));
         });
     });
 
     document.querySelectorAll('.btn-action-delete').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const target = e.target.closest('.btn-action-delete');
-            if (target) {
-                const index = parseInt(target.getAttribute('data-index'));
-                confirmRemovePart(index);
-            }
+            if (target) confirmRemovePart(parseInt(target.getAttribute('data-index'), 10));
         });
     });
 }
 
 function editPart(index) {
-    const addBtn = document.getElementById('btn-add-part');
-
     if (editingIndex === index) {
         editingIndex = null;
-        addBtn.title = 'Agregar pieza';
-        document.getElementById('part-name').value = '';
-        document.getElementById('part-length').value = '';
-        document.getElementById('part-qty').value = '';
+        editingTempRow = null;
+        renderInputRows();
         renderPartsTable();
         return;
     }
 
     const part = partsList[index];
-    document.getElementById('part-name').value = part.name;
-    document.getElementById('part-length').value = part.length;
-    document.getElementById('part-qty').value = part.qty;
+    editingTempRow = { name: part.name, length: part.length, qty: part.qty };
     editingIndex = index;
-    
-    addBtn.title = 'Actualizar pieza';
-    
+    renderInputRows();
     renderPartsTable();
-    document.getElementById('part-name').focus();
 }
 
 function confirmRemovePart(index) {
     const part = partsList[index];
-    const confirmation = window.confirm(`¿ESTÁS SEGURO DE ELIMINAR LA PIEZA "${part.name.toUpperCase()}"?`);
-    if (confirmation) {
+    if (window.confirm(`¿ESTÁS SEGURO DE ELIMINAR LA PIEZA "${part.name.toUpperCase()}"?`)) {
         removePart(index);
     }
 }
@@ -613,17 +776,13 @@ function removePart(index) {
     partsList.splice(index, 1);
     if (editingIndex === index) {
         editingIndex = null;
-        const addBtn = document.getElementById('btn-add-part');
-        addBtn.title = 'Agregar pieza';
-        document.getElementById('part-name').value = '';
-        document.getElementById('part-length').value = '';
-        document.getElementById('part-qty').value = '';
+        editingTempRow = null;
     }
+    renderInputRows();
     renderPartsTable();
     updateButtonStates();
 }
 
-// GENERADOR DE COLORES Y PATRONES ADAPTADOS PARA MODO DALTÓNICO
 function getPartColor(name) {
     if (!partColorsMap[name]) {
         let hash = 0;
@@ -633,7 +792,6 @@ function getPartColor(name) {
         let hue = Math.abs(hash * 137) % 360;
         partColorsMap[name] = {
             normal: `hsl(${hue}, 55%, 55%)`,
-            // Alto contraste y diferenciación segura para daltónicos (Tonos optimizados y alta saturación)
             colorblind: `hsl(${(hue * 3) % 360}, 90%, 45%)`
         };
     }
@@ -644,20 +802,20 @@ function getPartColor(name) {
 // OPTIMIZACIÓN DE BARRAS
 // =========================================================
 
-document.getElementById('btn-optimize').addEventListener('click', () => {
+document.getElementById('btn-optimize')?.addEventListener('click', () => {
     const projectName = document.getElementById('project-name').value.trim() || 'PROYECTO SIN NOMBRE';
-    const barLength = parseFloat(document.getElementById('bar-length').value);
+    const barLength = parseFloat(document.getElementById('bar-length').value) || 6000;
     const bladeWidth = parseFloat(document.getElementById('blade-width').value) || 0;
 
     if (partsList.length === 0) {
-        alert('DEBE AGREGAR AL MENOS UNA PIEZA PARA OPTIMIZAR.');
+        alert('DEBE AGREGAR AL MENOS UNA PIEZA A LA TABLA PARA OPTIMIZAR.');
         return;
     }
 
     let expandedParts = [];
     partsList.forEach(p => {
         for (let i = 0; i < p.qty; i++) {
-            expandedParts.push({ name: p.name, length: p.length });
+            expandedParts.push({ name: p.name, length: parseFloat(p.length) });
         }
     });
 
@@ -705,14 +863,23 @@ document.getElementById('btn-optimize').addEventListener('click', () => {
 
 function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth) {
     const container = document.getElementById('results-container');
+    if (!container) return;
+
+    const orderData = getOrderData();
+    const profileCode = orderData.excelCodigo ? orderData.excelCodigo.toUpperCase() : '';
+    const profileDesc = orderData.excelDescripcion ? orderData.excelDescripcion.toUpperCase() : '';
+    const profileString = (profileCode || profileDesc) ? `${profileCode} ${profileDesc ? '- ' + profileDesc : ''}`.trim() : '';
 
     let html = `
         <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-size: 11px; display: flex; align-items: center; gap: 12px;">
-                <span><strong>DOCUMENTO:</strong> ${projectName.toUpperCase()}</span>
-                <span style="border: 1px solid #383846; padding: 3px 8px; border-radius: 4px; font-weight: bold;">
-                    BARRAS TOTALES: ${totalUsedBars}
-                </span>
+            <div style="font-size: 11px; display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span><strong>DOCUMENTO:</strong> ${projectName.toUpperCase()}</span>
+                    <span style="border: 1px solid #383846; padding: 3px 8px; border-radius: 4px; font-weight: bold;">
+                        BARRAS TOTALES: ${totalUsedBars}
+                    </span>
+                </div>
+                ${profileString ? `<div style="font-size: 11px; color: #b35500;"><strong>PERFIL:</strong> ${profileString}</div>` : ''}
             </div>
             <button id="btn-print-report" class="btn-app" style="background-color: #b35500; color: #ffffff;">IMPRIMIR REPORTE</button>
         </div>
@@ -767,14 +934,12 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
         group.cuts.forEach((cut) => {
             let widthPercent = (cut.length / barLength) * 100;
             let partColor = getPartColor(cut.name);
-            
-            // Si el modo daltónico está activo, aplicamos patrones geométricos adicionales de textura a los bloques de corte para asegurar máxima distinción visual
             let patternStyle = isColorBlindMode ? `; background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255, 255, 255, 0.15) 4px, rgba(255, 255, 255, 0.15) 8px)` : '';
             
             html += `
                 <div class="print-cut-block" title="${cut.name}: ${cut.length}" style="width: ${widthPercent}%; background-color: ${partColor}${patternStyle}; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; overflow: hidden; white-space: nowrap; border-right: 1px solid #121217; padding: 2px; box-sizing: border-box;" >
-                    <strong style="font-size: 8px; line-height: 9px; text-overflow: ellipsis; overflow: hidden; max-width: 100%; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">${cut.name.toUpperCase()}</strong>
-                    <span style="font-size: 8px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">${cut.length}</span>
+                    <strong style="font-size: 8px; line-height: 9px; text-overflow: ellipsis; overflow: hidden; max-width: 100%; color: #fff;">${cut.name.toUpperCase()}</strong>
+                    <span style="font-size: 8px; font-weight: bold; color: #fff;">${cut.length}</span>
                 </div>
             `;
         });
@@ -797,13 +962,10 @@ function renderResults(projectName, barLength, groups, totalUsedBars, bladeWidth
 
     const printBtn = document.getElementById('btn-print-report');
     if (printBtn) {
-        printBtn.addEventListener('click', () => {
-            window.print();
-        });
+        printBtn.addEventListener('click', () => window.print());
     }
 }
 
-// ESTILOS DINÁMICOS PARA EL HOVER DE LAS BARRAS E IMPRESIÓN
 const dynamicStyle = document.createElement('style');
 dynamicStyle.innerHTML = `
     .bar-hover-effect:hover {
@@ -811,21 +973,80 @@ dynamicStyle.innerHTML = `
         background-color: #272732 !important;
         box-shadow: 0 0 8px rgba(179, 85, 0, 0.25);
     }
-
     @media print {
-        @page { size: A4 portrait; margin: 10mm; }
-        body { background: #ffffff !important; color: #000000 !important; font-family: system-ui, -apple-system, sans-serif !important; margin: 0 !important; padding: 0 !important; }
-        header, .card:not(#results-card), #btn-optimize, button { display: none !important; }
-        #results-card { border: none !important; box-shadow: none !important; background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
-        #results-card * { color: #000000 !important; }
-        table { border-collapse: collapse !important; width: 100% !important; }
-        th, td { border: 1px solid #000000 !important; padding: 4px 8px !important; font-size: 10px !important; }
-        .print-parts-summary { background: #ffffff !important; border: 1px solid #000000 !important; margin-bottom: 12px !important; }
-        .print-bar-card { background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 2px !important; margin-bottom: 8mm !important; padding: 6px !important; page-break-inside: avoid; box-shadow: none !important; }
-        .print-bar-track { height: 22px !important; background: #ffffff !important; border: 1px solid #000000 !important; border-radius: 0 !important; }
-        .print-cut-block { background: #ffffff !important; color: #000000 !important; border-right: 1px solid #000000 !important; box-sizing: border-box !important; }
-        .print-cut-block strong, .print-cut-block span { color: #000000 !important; font-weight: 700 !important; font-size: 8px !important; }
-        .print-waste-block { background: #e0e0e0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border-left: 1px solid #000000 !important; }
+        @page { 
+            size: A4 landscape; 
+            margin: 8mm; 
+        }
+        body { 
+            background: #ffffff !important; 
+            color: #000000 !important; 
+            font-family: system-ui, -apple-system, sans-serif !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+        }
+        header, .card:not(#results-card), #btn-optimize, button { 
+            display: none !important; 
+        }
+        #results-card { 
+            border: none !important; 
+            box-shadow: none !important; 
+            background: #ffffff !important; 
+            padding: 0 !important; 
+            margin: 0 !important; 
+        }
+        #results-card * { 
+            color: #000000 !important; 
+            text-shadow: none !important; 
+        }
+        table { 
+            border-collapse: collapse !important; 
+            width: 100% !important; 
+        }
+        th, td { 
+            border: 1px solid #000000 !important; 
+            padding: 4px 8px !important; 
+            font-size: 10px !important; 
+        }
+        .print-parts-summary { 
+            background: #ffffff !important; 
+            border: 1px solid #000000 !important; 
+            margin-bottom: 12px !important; 
+        }
+        .print-bar-card { 
+            background: #ffffff !important; 
+            border: 1px solid #000000 !important; 
+            border-radius: 0px !important; 
+            margin-bottom: 6mm !important; 
+            padding: 6px !important; 
+            page-break-inside: avoid; 
+            box-shadow: none !important; 
+        }
+        .print-bar-track { 
+            height: 24px !important; 
+            background: #ffffff !important; 
+            border: 1px solid #000000 !important; 
+            border-radius: 0 !important; 
+        }
+        .print-cut-block { 
+            background: #f0f0f0 !important; 
+            color: #000000 !important; 
+            border-right: 1px solid #000000 !important; 
+            box-sizing: border-box !important; 
+        }
+        .print-cut-block strong, .print-cut-block span { 
+            color: #000000 !important; 
+            font-weight: 700 !important; 
+            font-size: 9px !important; 
+            text-shadow: none !important; 
+        }
+        .print-waste-block { 
+            background: #ffffff !important; 
+            background-image: repeating-linear-gradient(45deg, #ccc, #ccc 2px, #fff 2px, #fff 6px) !important; 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important; 
+            border-left: 1px solid #000000 !important; 
+        }
     }
 `;
 document.head.appendChild(dynamicStyle);
@@ -833,10 +1054,11 @@ document.head.appendChild(dynamicStyle);
 window.addEventListener('DOMContentLoaded', async () => {
     await populateSavedProjectsDropdown();
     initRealtimeSync();
+    renderInputRows();
+    renderPartsTable();
     updateButtonStates();
     const bladeInput = document.getElementById('blade-width');
-    if(bladeInput && !bladeInput.value) bladeInput.value = 2;
-    
+    if(bladeInput && !bladeInput.value) bladeInput.value = '0';
     const selectElem = document.getElementById('saved-projects-select');
     if(selectElem) lastSelectedValue = selectElem.value;
 });
@@ -847,36 +1069,42 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 let excelRowsData = [];
 
-document.getElementById('btn-admin').addEventListener('click', () => {
+document.getElementById('btn-admin')?.addEventListener('click', () => {
     const password = prompt('INGRESE LA CONTRASEÑA DE ADMINISTRADOR:');
-    
-    if (password === null) return; // Si cancela
+    if (password === null) return;
     
     if (password.trim() === 'datawaves') {
         alert('¡ACCESO CONCEDIDO!');
         document.getElementById('admin-controls-container').style.display = 'flex';
-        document.getElementById('btn-admin').style.borderColor = '#28a745';
-        document.getElementById('btn-admin').style.color = '#28a745';
-        document.getElementById('btn-admin').textContent = 'ADMIN (ACTIVO)';
+        const btnAdmin = document.getElementById('btn-admin');
+        btnAdmin.style.borderColor = '#28a745';
+        btnAdmin.style.color = '#28a745';
+        btnAdmin.textContent = 'ADMIN (ACTIVO)';
     } else {
         alert('CONTRASEÑA INCORRECTA.');
     }
 });
 
-// Abrir modal de Excel
-document.getElementById('btn-open-excel-db').addEventListener('click', () => {
+document.getElementById('btn-open-excel-db')?.addEventListener('click', async () => {
     document.getElementById('excel-modal').style.display = 'flex';
-    cargarDatosExcelEnTabla();
+    await cargarDatosExcelDesdeSupabase();
+    restaurarAnchosColumnas();
 });
 
-// Cerrar modal de Excel
-document.getElementById('btn-close-excel-modal').addEventListener('click', () => {
+document.getElementById('btn-close-excel-modal')?.addEventListener('click', () => {
     document.getElementById('excel-modal').style.display = 'none';
 });
 
-// Cargar o inicializar filas de ejemplo/guardadas
-function cargarDatosExcelEnTabla() {
-    // Si no hay datos previos, cargamos una fila vacía para empezar a tipear a mano
+async function cargarDatosExcelDesdeSupabase() {
+    const { data, error } = await supabaseClient.from('excel_database').select('*').order('created_at', { ascending: true });
+
+    if (error) {
+        const local = localStorage.getItem('datawaves_excel_db');
+        excelRowsData = local ? JSON.parse(local) : [];
+    } else {
+        excelRowsData = data || [];
+    }
+
     if (excelRowsData.length === 0) {
         excelRowsData.push({ codigo: '', descripcion: '', categoria: '', largo: '' });
     }
@@ -885,6 +1113,7 @@ function cargarDatosExcelEnTabla() {
 
 function renderExcelTable() {
     const tbody = document.getElementById('excel-table-body');
+    if (!tbody) return;
     tbody.innerHTML = '';
 
     excelRowsData.forEach((row, index) => {
@@ -892,10 +1121,22 @@ function renderExcelTable() {
         tr.style.borderBottom = '1px solid #2a2a36';
         
         tr.innerHTML = `
-            <td style="padding: 4px; border: 1px solid #383846;"><input type="text" class="excel-input" data-index="${index}" data-field="codigo" value="${row.codigo || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
-            <td style="padding: 4px; border: 1px solid #383846;"><input type="text" class="excel-input" data-index="${index}" data-field="descripcion" value="${row.descripcion || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
-            <td style="padding: 4px; border: 1px solid #383846;"><input type="text" class="excel-input" data-index="${index}" data-field="categoria" value="${row.categoria || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
-            <td style="padding: 4px; border: 1px solid #383846;"><input type="number" class="excel-input" data-index="${index}" data-field="largo" value="${row.largo || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;"></td>
+            <td style="padding: 4px; border: 1px solid #383846; position: relative;">
+                <input type="text" class="excel-input" data-index="${index}" data-field="codigo" value="${row.codigo || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;">
+                <div class="drag-handle" title="Copiar hacia abajo" data-index="${index}" data-field="codigo" style="position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px; background: #b35500; cursor: s-resize; display: none;"></div>
+            </td>
+            <td style="padding: 4px; border: 1px solid #383846; position: relative;">
+                <input type="text" class="excel-input" data-index="${index}" data-field="descripcion" value="${row.descripcion || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;">
+                <div class="drag-handle" title="Copiar hacia abajo" data-index="${index}" data-field="descripcion" style="position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px; background: #b35500; cursor: s-resize; display: none;"></div>
+            </td>
+            <td style="padding: 4px; border: 1px solid #383846; position: relative;">
+                <input type="text" class="excel-input" data-index="${index}" data-field="categoria" value="${row.categoria || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;">
+                <div class="drag-handle" title="Copiar hacia abajo" data-index="${index}" data-field="categoria" style="position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px; background: #b35500; cursor: s-resize; display: none;"></div>
+            </td>
+            <td style="padding: 4px; border: 1px solid #383846; position: relative;">
+                <input type="number" class="excel-input" data-index="${index}" data-field="largo" value="${row.largo || ''}" style="background: transparent; border: none; color: #c2c2d0; width: 100%; outline: none; padding: 4px;">
+                <div class="drag-handle" title="Copiar hacia abajo" data-index="${index}" data-field="largo" style="position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px; background: #b35500; cursor: s-resize; display: none;"></div>
+            </td>
             <td style="padding: 4px; border: 1px solid #383846; text-align: center;">
                 <button class="icon-btn btn-delete-excel-row" data-index="${index}" title="Eliminar fila">
                     <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: #bb3030;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -905,21 +1146,68 @@ function renderExcelTable() {
         tbody.appendChild(tr);
     });
 
-    // Guardar cambios automáticamente al escribir en las celdas estilo hoja de cálculo
     document.querySelectorAll('.excel-input').forEach(input => {
+        input.addEventListener('focus', (e) => {
+            const td = e.target.closest('td');
+            const handle = td?.querySelector('.drag-handle');
+            if (handle) handle.style.display = 'block';
+        });
+        input.addEventListener('blur', (e) => {
+            setTimeout(() => {
+                const td = e.target.closest('td');
+                const handle = td?.querySelector('.drag-handle');
+                if (handle) handle.style.display = 'none';
+            }, 200);
+        });
+
         input.addEventListener('input', (e) => {
-            const idx = parseInt(e.target.getAttribute('data-index'));
+            const idx = parseInt(e.target.getAttribute('data-index'), 10);
             const field = e.target.getAttribute('data-field');
-            excelRowsData[idx][field] = e.target.value;
+            if (excelRowsData[idx]) {
+                excelRowsData[idx][field] = e.target.value;
+            }
         });
     });
 
-    // Botones para eliminar fila específica
+    document.querySelectorAll('.drag-handle').forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const startIdx = parseInt(e.target.getAttribute('data-index'), 10);
+            const field = e.target.getAttribute('data-field');
+            const valToCopy = excelRowsData[startIdx][field];
+
+            function onMouseMove(moveEvent) {
+                const elemUnder = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+                if (elemUnder && elemUnder.classList.contains('excel-input')) {
+                    const targetIdx = parseInt(elemUnder.getAttribute('data-index'), 10);
+                    const targetField = elemUnder.getAttribute('data-field');
+                    if (targetField === field && targetIdx >= startIdx) {
+                        excelRowsData[targetIdx][field] = valToCopy;
+                        elemUnder.value = valToCopy;
+                    }
+                }
+            }
+
+            function onMouseUp() {
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+                renderExcelTable();
+            }
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+        });
+    });
+
     document.querySelectorAll('.btn-delete-excel-row').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             const target = e.target.closest('.btn-delete-excel-row');
             if (target) {
-                const idx = parseInt(target.getAttribute('data-index'));
+                const idx = parseInt(target.getAttribute('data-index'), 10);
+                const rowToDelete = excelRowsData[idx];
+                if (rowToDelete && rowToDelete.id) {
+                    await supabaseClient.from('excel_database').delete().eq('id', rowToDelete.id);
+                }
                 excelRowsData.splice(idx, 1);
                 renderExcelTable();
             }
@@ -927,14 +1215,66 @@ function renderExcelTable() {
     });
 }
 
-// Botón dentro del modal para agregar una nueva línea en blanco
-document.getElementById('btn-excel-add-row').addEventListener('click', () => {
+document.getElementById('btn-excel-add-row')?.addEventListener('click', () => {
     excelRowsData.push({ codigo: '', descripcion: '', categoria: '', largo: '' });
     renderExcelTable();
 });
 
-// Botón de guardar cambios en la base de datos simulada/local
-document.getElementById('btn-excel-save').addEventListener('click', () => {
-    alert('¡DATOS DE LA TABLA EXCEL GUARDADOS CORRECTAMENTE EN MEMORIA!');
+document.getElementById('btn-excel-save')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-excel-save');
+    btn.textContent = 'GUARDANDO...';
+    btn.disabled = true;
+
+    await supabaseClient.from('excel_database').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+    const cleanRows = excelRowsData
+        .filter(r => r.codigo || r.descripcion || r.categoria || r.largo)
+        .map(r => ({
+            codigo: r.codigo || '',
+            descripcion: r.descripcion || '',
+            categoria: r.categoria || '',
+            largo: r.largo || ''
+        }));
+
+    if (cleanRows.length > 0) {
+        const { error } = await supabaseClient.from('excel_database').insert(cleanRows);
+        if (error) {
+            alert('ERROR AL GUARDAR EN NUBE: ' + error.message);
+            btn.textContent = 'GUARDAR CAMBIOS';
+            btn.disabled = false;
+            return;
+        }
+    }
+
+    localStorage.setItem('datawaves_excel_db', JSON.stringify(excelRowsData));
+    alert('¡DATOS GUARDADOS EN NUBE CON ÉXITO!');
+    btn.textContent = 'GUARDAR CAMBIOS';
+    btn.disabled = false;
     document.getElementById('excel-modal').style.display = 'none';
+});
+
+function guardarAnchosColumnas() {
+    const ths = document.querySelectorAll('#excel-editable-table th');
+    const anchos = Array.from(ths).map(th => th.style.width || th.offsetWidth + 'px');
+    localStorage.setItem('datawaves_excel_widths', JSON.stringify(anchos));
+}
+
+function restaurarAnchosColumnas() {
+    const savedWidths = localStorage.getItem('datawaves_excel_widths');
+    if (savedWidths) {
+        try {
+            const anchos = JSON.parse(savedWidths);
+            const ths = document.querySelectorAll('#excel-editable-table th');
+            ths.forEach((th, i) => {
+                if (anchos[i]) th.style.width = anchos[i];
+            });
+        } catch(e) {}
+    }
+}
+
+document.addEventListener('mouseup', () => {
+    const modal = document.getElementById('excel-modal');
+    if (modal && modal.style.display === 'flex') {
+        guardarAnchosColumnas();
+    }
 });
